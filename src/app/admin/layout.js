@@ -7,7 +7,9 @@ const sidebarLinks = [
   { label: 'Candidates', href: '/admin', icon: '👥' },
   { label: 'Interviews', href: '#', icon: '📅' },
   { label: 'Offers', href: '#', icon: '📄' },
+  { label: 'Settings', href: '/admin/settings', icon: '⚙️' },
 ]
+
 
 export const metadata = {
   title: 'Admin – HireOS',

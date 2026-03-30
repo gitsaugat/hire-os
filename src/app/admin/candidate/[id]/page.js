@@ -150,7 +150,7 @@ export default async function CandidateDetailPage({ params }) {
                           <ul className="mt-1 space-y-1">
                             {candidate.ai_profile.skills_found?.map(s => (
                               <li key={s} className="text-xs text-gray-600 flex items-center gap-1">
-                                <span className="text-teal-500">✓</span> {s}
+                                <span className="text-teal-500 font-bold">✓</span> {s}
                               </li>
                             ))}
                           </ul>
@@ -161,7 +161,7 @@ export default async function CandidateDetailPage({ params }) {
                             {candidate.ai_profile.gaps_found?.length > 0 ? (
                               candidate.ai_profile.gaps_found.map(g => (
                                 <li key={g} className="text-xs text-gray-600 flex items-center gap-1">
-                                  <span className="text-amber-500">⚠</span> {g}
+                                  <span className="text-amber-500 font-bold">!</span> {g}
                                 </li>
                               ))
                             ) : (
@@ -170,12 +170,41 @@ export default async function CandidateDetailPage({ params }) {
                           </ul>
                         </div>
                       </div>
+
+                      {/* New AI Fields */}
+                      <div className="pt-4 border-t border-gray-50 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-xs font-bold text-gray-400 uppercase">Relevant Experience</h3>
+                          <span className="text-sm font-bold text-gray-900">
+                            {candidate.ai_profile.experience_years ?? '—'} years
+                          </span>
+                        </div>
+                        
+                        <div>
+                          <h3 className="text-xs font-bold text-indigo-400 uppercase flex items-center gap-1">
+                            <span>💪</span> Strengths
+                          </h3>
+                          <p className="mt-1 text-xs text-gray-600 leading-relaxed">
+                            {candidate.ai_profile.strengths || 'No specific strengths highlighted.'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <h3 className="text-xs font-bold text-red-400 uppercase flex items-center gap-1">
+                            <span>⚠️</span> Potential Risks
+                          </h3>
+                          <p className="mt-1 text-xs text-gray-600 leading-relaxed italic">
+                            {candidate.ai_profile.risks || 'No risks identified.'}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </>
               )}
             </div>
           )}
+
 
 
           {/* Status update form */}

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../supabase-admin'
 import { updateCandidateStatus } from '../candidates'
 import { evaluateCandidate } from '../ai'
+import { PDFParse } from 'pdf-parse'
 
 /**
  * Background AI screening workflow.
@@ -23,25 +24,48 @@ export async function screenCandidate(candidateId) {
       throw new Error(`Candidate not found: ${fetchError?.message}`)
     }
 
-    // 2. Extract resume text
-    // NOTE: In a real app, you would download the file from Storage
-    // and use a PDF parsing library (like pdf-parse) here.
-    // For this implementation, we'll simulate the extraction.
-    const resumeText = `Name: ${candidate.name}\nEmail: ${candidate.email}\nExperience: 5 years in full-stack development. Proficient in React, Node.js, and SQL.`
+    if (!candidate.resume_url) {
+      throw new Error('Resume URL is missing for this candidate.')
+    }
+
+    // 2. Download and Extract resume text
+    console.log(`[screenCandidate] Downloading resume from storage: ${candidate.resume_url}`)
+    const { data: fileBlob, error: downloadError } = await supabaseAdmin.storage
+      .from('resumes')
+      .download(candidate.resume_url.replace('resumes/', ''))
+
+    if (downloadError) throw downloadError
+
+    // Convert Blob to Buffer for PDFParse
+    const arrayBuffer = await fileBlob.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    let resumeText = ''
+    try {
+      // Use the PDFParse class (version 2.4.5 API)
+      const parser = new PDFParse({ data: buffer })
+      const pdfData = await parser.getText()
+      resumeText = pdfData.text
+      console.log(`[screenCandidate] Successfully extracted ${resumeText.length} characters from PDF.`)
+      
+      // Clean up parser
+      await parser.destroy()
+    } catch (err) {
+      console.warn('[screenCandidate] PDF parsing failed, falling back to metadata:', err.message)
+      resumeText = `Candidate Name: ${candidate.name}\nEmail: ${candidate.email}\nNote: Resume text extraction failed.`
+    }
+
+
     const jdText = candidate.role?.jd_text || 'No job description provided.'
 
-    // 3. AI Evaluation (with retry logic)
+    // 3. AI Evaluation (Router handles which provider to use and fallback)
     let aiResult
-    let attempts = 0
-    while (attempts < 2) {
-      try {
-        aiResult = await evaluateCandidate(resumeText, jdText)
-        break
-      } catch (err) {
-        attempts++
-        if (attempts === 2) throw err
-        console.warn(`[screenCandidate] AI attempt ${attempts} failed, retrying...`)
-      }
+    try {
+      aiResult = await evaluateCandidate(jdText, resumeText)
+    } catch (err) {
+
+      console.error(`[screenCandidate] AI Router failed for ${candidateId}:`, err.message)
+      throw err // caught by the outer try-catch
     }
 
     // 4. Store the AI profile results
@@ -50,10 +74,13 @@ export async function screenCandidate(candidateId) {
       .upsert({
         candidate_id: candidateId,
         summary: aiResult.summary,
-        skills_found: aiResult.skills_found,
-        gaps_found: aiResult.gaps_found,
+        skills_found: aiResult.skills || [],
+        gaps_found: aiResult.gaps ? [aiResult.gaps] : [], // user's gaps field
         recommendation: aiResult.recommendation,
-        raw_analysis: aiResult.raw_analysis
+        experience_years: aiResult.experience_years,
+        strengths: aiResult.strengths,
+        risks: aiResult.risks,
+        raw_analysis: aiResult
       }, { onConflict: 'candidate_id' })
 
     if (profileError) throw profileError
@@ -62,10 +89,11 @@ export async function screenCandidate(candidateId) {
     const { error: updateError } = await supabaseAdmin
       .from('candidates')
       .update({
-        ai_score: aiResult.score / 100, // Normalize to 0-1
-        ai_confidence: aiResult.confidence
+        ai_score: (aiResult.score || 0) / 100, // Normalize to 0-1
+        ai_confidence: aiResult.confidence || 0
       })
       .eq('id', candidateId)
+
 
     if (updateError) throw updateError
 
