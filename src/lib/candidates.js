@@ -118,9 +118,10 @@ export async function updateCandidateStatus(
 export async function getCandidateById(id) {
   const { data: candidate, error } = await supabase
     .from('candidates')
-    .select(`*, role:roles(*), status_history(*)`)
+    .select(`*, role:roles(*), status_history(*), ai_profile:candidate_ai_profiles(*)`)
     .eq('id', id)
     .single()
+
 
   if (error) return { data: null, error }
 
@@ -157,3 +158,24 @@ export async function getCandidates(filters = {}) {
   const { data, error } = await query
   return { data, error }
 }
+
+/**
+ * Delete a candidate by ID.
+ * Used for rollback when resume upload fails after the record was created.
+ *
+ * @param {string} candidateId
+ * @returns {{ error: Error | null }}
+ */
+export async function deleteCandidateById(candidateId) {
+  const { error } = await supabase
+    .from('candidates')
+    .delete()
+    .eq('id', candidateId)
+
+  if (error) {
+    console.error('[deleteCandidateById] Rollback failed:', error)
+  }
+
+  return { error }
+}
+

@@ -1,30 +1,33 @@
 'use server'
 
-import { supabase } from '@/lib/supabase'
-import { createCandidate, updateCandidateStatus } from '@/lib/candidates'
+import { createCandidate, updateCandidateStatus, deleteCandidateById } from '@/lib/candidates'
+import { validateResumeFile, uploadResume } from '@/lib/storage'
+import { screenCandidate } from '@/lib/workflows/screenCandidate'
 import { revalidatePath } from 'next/cache'
-
-const ALLOWED_MIME_TYPES = ['application/pdf', 'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx']
-const MAX_FILE_BYTES = 5 * 1024 * 1024 // 5 MB
 
 /**
  * Server action — handles the /apply form submission.
- * Uploads resume to Supabase Storage then creates the candidate.
+ *
+ * Flow:
+ *   1. Validate inputs and file
+ *   2. Create candidate record (status = APPLIED) → get candidate.id
+ *   3. Upload resume to resumes/{candidate.id}/resume{ext}
+ *   4. Update candidate.resume_url with the storage path
+ *   5. On upload failure → delete the candidate record (rollback)
+ *   6. Start AI screening in background (non-blocking)
  *
  * @param {FormData} formData
  * @returns {{ success: boolean, error?: string, candidateId?: string }}
  */
 export async function applyAction(formData) {
-  const name        = formData.get('name')?.trim()
-  const email       = formData.get('email')?.trim()
-  const linkedin    = formData.get('linkedin_url')?.trim() || null
-  const github      = formData.get('github_url')?.trim() || null
-  const roleId      = formData.get('role_id')
-  const resumeFile  = formData.get('resume')
+  const name       = formData.get('name')?.trim()
+  const email      = formData.get('email')?.trim()
+  const linkedin   = formData.get('linkedin_url')?.trim() || null
+  const github     = formData.get('github_url')?.trim() || null
+  const roleId     = formData.get('role_id')
+  const resumeFile = formData.get('resume')
 
-  // Basic validation
+  // ── 1. Input validation ────────────────────────────────────────
   if (!name || !email || !roleId) {
     return { success: false, error: 'Name, email, and role are required.' }
   }
@@ -33,60 +36,61 @@ export async function applyAction(formData) {
     return { success: false, error: 'Invalid email address.' }
   }
 
-  let resumeUrl = null
-
-  // Handle resume upload
-  if (resumeFile && resumeFile.size > 0) {
-    if (resumeFile.size > MAX_FILE_BYTES) {
-      return { success: false, error: 'Resume must be under 5 MB.' }
-    }
-
-    const fileExt = resumeFile.name.slice(resumeFile.name.lastIndexOf('.')).toLowerCase()
-    if (!ALLOWED_EXTENSIONS.includes(fileExt)) {
-      return { success: false, error: 'Resume must be a PDF or Word document.' }
-    }
-
-    if (!ALLOWED_MIME_TYPES.includes(resumeFile.type) && resumeFile.type !== '') {
-      return { success: false, error: 'Invalid file type. Upload PDF or DOCX.' }
-    }
-
-    const fileName = `${Date.now()}-${email.replace(/[^a-z0-9]/gi, '_')}${fileExt}`
-
-    const arrayBuffer = await resumeFile.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('resumes')
-      .upload(fileName, buffer, {
-        contentType: resumeFile.type || 'application/octet-stream',
-        upsert: false,
-      })
-
-    if (uploadError) {
-      console.error('Resume upload error:', uploadError)
-      return { success: false, error: 'Failed to upload resume. Please try again.' }
-    }
-
-    const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(uploadData.path)
-    resumeUrl = urlData.publicUrl
+  // Resume is required
+  const fileError = validateResumeFile(resumeFile)
+  if (fileError) {
+    return { success: false, error: fileError }
   }
 
-  const { data, error } = await createCandidate({
+  // ── 2. Create candidate record (no resume_url yet) ─────────────
+  const { data: candidate, error: createError } = await createCandidate({
     name,
     email,
     linkedin_url: linkedin,
     github_url: github,
-    resume_url: resumeUrl,
+    resume_url: null, // will be set after upload
     role_id: roleId,
   })
 
-  if (error) {
-    return { success: false, error: error.message }
+  if (createError) {
+    return { success: false, error: createError.message }
   }
 
+  // ── 3. Upload resume to resumes/{candidate.id}/resume{ext} ─────
+  const { path: storagePath, error: uploadError } = await uploadResume(
+    resumeFile,
+    candidate.id
+  )
+
+  if (uploadError) {
+    // Rollback: delete the candidate so the form can be retried cleanly
+    await deleteCandidateById(candidate.id)
+    return { success: false, error: uploadError }
+  }
+
+  // ── 4. Store the storage path (not a public URL) ───────────────
+  const { error: updateError } = await updateCandidateResumeUrl(
+    candidate.id,
+    storagePath
+  )
+
+  if (updateError) {
+    console.error('[applyAction] Failed to write resume_url to candidate:', updateError)
+  }
+
+  // ── 5. Trigger AI Screening (Asynchronous) ────────────────────
+  // Update status to SCREENING first
+  await updateCandidateStatus(candidate.id, 'SCREENING', 'AI screening started', 'AI')
+
+  // Trigger evaluation in the background (no await)
+  screenCandidate(candidate.id).catch(err => {
+    console.error(`[applyAction] Async screening trigger failed for ${candidate.id}:`, err)
+  })
+
   revalidatePath('/admin')
-  return { success: true, candidateId: data.id }
+  return { success: true, candidateId: candidate.id }
 }
+
 
 /**
  * Server action — handles status update from admin candidate detail page.
@@ -112,4 +116,17 @@ export async function updateStatusAction(formData) {
   revalidatePath(`/admin/candidate/${candidateId}`)
   revalidatePath('/admin')
   return { success: true }
+}
+
+// ── Internal helpers ────────────────────────────────────────────────
+
+import { supabase } from '@/lib/supabase'
+
+async function updateCandidateResumeUrl(candidateId, resumeUrl) {
+  const { error } = await supabase
+    .from('candidates')
+    .update({ resume_url: resumeUrl })
+    .eq('id', candidateId)
+
+  return { error }
 }

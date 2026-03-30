@@ -155,10 +155,16 @@ export default async function AdminDashboard({ searchParams }) {
                           {Math.round(c.ai_score * 100)}%
                         </span>
                       </div>
+                    ) : c.status === 'SCREENING' ? (
+                      <div className="flex items-center gap-2 animate-pulse">
+                        <div className="h-1.5 w-20 rounded-full bg-gray-100" />
+                        <span className="text-xs font-medium text-amber-500">Evaluating...</span>
+                      </div>
                     ) : (
                       <span className="text-xs text-gray-300">—</span>
                     )}
                   </td>
+
                   <td className="px-5 py-4 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
                 </tr>
               ))

@@ -5,9 +5,11 @@
 export default function StatusBadge({ status, variant = 'default' }) {
   const colorMap = {
     APPLIED:                { bg: 'bg-blue-100',    text: 'text-blue-800' },
-    SCREENING:              { bg: 'bg-yellow-100',  text: 'text-yellow-800' },
+    SCREENING:              { bg: 'bg-amber-100',   text: 'text-amber-800' },
     SCREENED:               { bg: 'bg-yellow-100',  text: 'text-yellow-800' },
+    SCREENING_FAILED:       { bg: 'bg-red-100',     text: 'text-red-800' },
     SHORTLISTED:            { bg: 'bg-indigo-100',  text: 'text-indigo-800' },
+
     INTERVIEW_SCHEDULING:   { bg: 'bg-purple-100',  text: 'text-purple-800' },
     INTERVIEW_SCHEDULED:    { bg: 'bg-purple-100',  text: 'text-purple-800' },
     INTERVIEW_COMPLETED:    { bg: 'bg-teal-100',    text: 'text-teal-800' },
