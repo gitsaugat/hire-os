@@ -63,7 +63,8 @@ export async function POST(req) {
       attemptWorkspaceInvite(offer.candidate.email)
     ]).catch(err => console.error('[IntegrationError]', err))
 
-    // 5. Update Candidate Status directly to HIRED
+    // 5. Update Candidate Status sequentially to show full history
+    await updateCandidateStatus(offer.candidate_id, 'OFFER_SIGNED', 'Offer officially signed by candidate.', 'SYSTEM')
     await updateCandidateStatus(offer.candidate_id, 'HIRED', 'Offer signed and onboarding automatically initiated.', 'SYSTEM')
 
     // Revalidate admin paths so HR sees the updated status immediately
