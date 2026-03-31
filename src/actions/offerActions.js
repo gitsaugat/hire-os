@@ -102,18 +102,16 @@ export async function sendOnboardingEmailAction(candidateId) {
  * Server action to mark onboarding as completed.
  */
 export async function markOnboardingDoneAction(candidateId) {
-  const { supabaseAdmin } = await import('@/lib/supabase-admin')
-
-  const { error } = await supabaseAdmin
-    .from('candidates')
-    .update({ status: 'ONBOARDING_DONE', updated_at: new Date().toISOString() })
-    .eq('id', candidateId)
+  const { error } = await updateCandidateStatus(
+    candidateId, 
+    'ONBOARDED', 
+    'Candidate onboarding has been officially marked as complete.', 
+    'HUMAN'
+  )
 
   if (error) {
     return { success: false, error: error.message }
   }
-
-  await updateCandidateStatus(candidateId, 'ONBOARDING_DONE', 'Candidate onboarding has been officially marked as complete.', 'HUMAN')
   
   revalidatePath('/admin/offers')
   revalidatePath(`/admin/candidate/${candidateId}`)

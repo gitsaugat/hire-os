@@ -14,6 +14,7 @@ export const CANDIDATE_STATUSES = [
   'OFFER_PENDING',
   'OFFER_SENT',
   'OFFER_SIGNED',
+  'HIRED',
   'ONBOARDED',
   'REJECTED',
 ]

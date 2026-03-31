@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendOfferEmail } from '@/lib/email'
+import { updateCandidateStatus } from '@/lib/candidates'
 
 export async function POST(req, { params }) {
   try {
@@ -58,14 +59,16 @@ export async function POST(req, { params }) {
       throw updateError
     }
 
-    // 5. Update Candidate Status to OFFER_SENT
-    const { error: candError } = await supabaseAdmin
-      .from('candidates')
-      .update({ status: 'OFFER_SENT' })
-      .eq('id', offer.candidate_id)
+    // 5. Update Candidate Status using canonical helper to ensure history log insertion
+    const { error: candError } = await updateCandidateStatus(
+      offer.candidate_id, 
+      'OFFER_SENT', 
+      'Official offer letter generated and sent to candidate.',
+      'HUMAN'
+    )
 
     if (candError) {
-      console.error(`[SendOfferAPI] DB Update Error (Candidate): ${candError.message}`)
+      console.error(`[SendOfferAPI] Candidate Status Update Error: ${candError.message}`)
       // Don't throw here, as offer was already sent
     }
 

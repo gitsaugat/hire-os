@@ -1,16 +1,117 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 
 export default function EmailsClient({ initialLogs }) {
   const [logs] = useState(initialLogs)
   const [selectedEmail, setSelectedEmail] = useState(null)
 
+  // Filters
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [dateFilter, setDateFilter] = useState('ALL')
+  const [roleFilter, setRoleFilter] = useState('ALL')
+
+  // Extract unique roles from logs for the dropdown
+  const uniqueRoles = useMemo(() => {
+    return Array.from(new Set(logs.map(l => l.candidate?.role?.title).filter(Boolean)))
+  }, [logs])
+
+  // Apply Filters
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => {
+      // 1. Search Match
+      const searchMatch = !searchTerm || 
+        log.subject?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        log.recipient?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.candidate?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      // 2. Status Match
+      const statusMatch = statusFilter === 'ALL' || log.status === statusFilter
+
+      // 3. Role Match
+      const roleMatch = roleFilter === 'ALL' || log.candidate?.role?.title === roleFilter
+
+      // 4. Date Match
+      let dateMatch = true
+      if (dateFilter !== 'ALL') {
+        const logDate = new Date(log.created_at)
+        const now = new Date()
+        if (dateFilter === 'TODAY') {
+          dateMatch = logDate.toDateString() === now.toDateString()
+        } else if (dateFilter === 'WEEK') {
+          const weekAgo = new Date(now.setDate(now.getDate() - 7))
+          dateMatch = logDate >= weekAgo
+        } else if (dateFilter === 'MONTH') {
+          const monthAgo = new Date(now.setMonth(now.getMonth() - 1))
+          dateMatch = logDate >= monthAgo
+        }
+      }
+
+      return searchMatch && statusMatch && roleMatch && dateMatch
+    })
+  }, [logs, searchTerm, statusFilter, roleFilter, dateFilter])
+
   return (
     <div className="px-8 py-8 relative">
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Email Logs</h1>
           <p className="mt-1 text-sm text-gray-500">View all outbound system communications and delivery statuses.</p>
+        </div>
+      </div>
+
+      {/* Filter Toolbar */}
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+        <div className="col-span-1 md:col-span-1">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Search</label>
+          <input 
+            type="text" 
+            placeholder="Candidate, Email, or Subject..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-indigo-400 focus:bg-white outline-none transition-all"
+          />
+        </div>
+        
+        <div>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Status (Kind)</label>
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-indigo-400 focus:bg-white outline-none transition-all appearance-none"
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="SENT">Delivered</option>
+            <option value="FAILED">Failed</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Time Range</label>
+          <select 
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-indigo-400 focus:bg-white outline-none transition-all appearance-none"
+          >
+            <option value="ALL">All Time</option>
+            <option value="TODAY">Today</option>
+            <option value="WEEK">Past 7 Days</option>
+            <option value="MONTH">Past 30 Days</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 ml-1">Role</label>
+          <select 
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-indigo-400 focus:bg-white outline-none transition-all appearance-none"
+          >
+            <option value="ALL">All Roles</option>
+            {uniqueRoles.map(role => (
+              <option key={role} value={role}>{role}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -27,15 +128,15 @@ export default function EmailsClient({ initialLogs }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {logs.length === 0 ? (
+            {filteredLogs.length === 0 ? (
               <tr>
-                <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
-                  <span className="text-3xl block mb-2">📬</span>
-                  No emails logged yet.
+                <td colSpan="6" className="px-6 py-12 text-center text-gray-500 font-medium">
+                  <span className="text-3xl block mb-2">🔍</span>
+                  No emails match your filters.
                 </td>
               </tr>
             ) : (
-              logs.map((log) => (
+              filteredLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 text-gray-500 font-medium whitespace-nowrap" suppressHydrationWarning>
                     {new Date(log.created_at).toLocaleString('en-US', { 
