@@ -29,7 +29,7 @@ export default function OfferSection({ candidate, existingOffer }) {
     )
   }
 
-  const canCreateOffer = ['INTERVIEW_COMPLETED', 'OFFER_PENDING', 'SHORTLISTED'].includes(candidate.status)
+  const canCreateOffer = ['INTERVIEW_COMPLETED', 'INTERVIEW_DONE', 'OFFER_PENDING', 'SHORTLISTED'].includes(candidate.status)
 
   if (!canCreateOffer) return null
 

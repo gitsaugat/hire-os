@@ -1,13 +1,7 @@
-import { supabase } from './supabase'
+import { supabaseAdmin } from './supabase-admin'
 
-/**
- * Fetch confirmed interview slots with candidate and role details.
- * 
- * @param {{ roleId?: string, date?: string }} filters
- * @returns {{ data: object[] | null, error: Error | null }}
- */
 export async function getConfirmedInterviews(filters = {}) {
-  let query = supabase
+  let query = supabaseAdmin
     .from('interviews')
     .select(`
       *,
@@ -18,7 +12,7 @@ export async function getConfirmedInterviews(filters = {}) {
         role:roles(id, title, team)
       )
     `)
-    .eq('status', 'CONFIRMED')
+    .in('status', ['CONFIRMED', 'completed'])
     .order('start_time', { ascending: true })
 
   // Filter by date (approximate for the full day)

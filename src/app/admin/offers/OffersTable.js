@@ -77,37 +77,40 @@ export default function OffersTable({ initialOffers }) {
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2 text-[10px] font-black uppercase tracking-widest">
                     {offer.status === 'PENDING_REVIEW' && (
-                      <button
-                        onClick={() => handleStatusUpdate(offer.id, offer.candidate.id, 'SENT')}
-                        disabled={isUpdating === offer.id}
-                        className="rounded-lg bg-indigo-50 px-3 py-1.5 text-indigo-600 hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                      <Link
+                        href={`/admin/offers/${offer.id}`}
+                        className="rounded-lg bg-[#7c6ef0]/10 px-3 py-1.5 text-[#7c6ef0] hover:bg-[#7c6ef0]/20 transition-colors"
                       >
-                        Send Offer
-                      </button>
+                        Review & Send
+                      </Link>
                     )}
                     {offer.status === 'SENT' && (
-                      <>
+                      <div className="flex gap-2">
+                        <Link
+                          href={`/admin/offers/${offer.id}`}
+                          className="rounded-lg border border-gray-100 px-3 py-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          View Details
+                        </Link>
                         <button
                           onClick={() => handleStatusUpdate(offer.id, offer.candidate.id, 'ACCEPTED')}
                           disabled={isUpdating === offer.id}
                           className="rounded-lg bg-green-50 px-3 py-1.5 text-green-600 hover:bg-green-100 transition-colors disabled:opacity-50"
                         >
-                          Accepted
+                          Mark Accepted
                         </button>
-                        <button
-                          onClick={() => handleStatusUpdate(offer.id, offer.candidate.id, 'DECLINED')}
-                          disabled={isUpdating === offer.id}
-                          className="rounded-lg bg-red-50 px-3 py-1.5 text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
-                        >
-                          Declined
-                        </button>
-                      </>
+                      </div>
+                    )}
+                    {offer.status === 'ACCEPTED' && (
+                       <span className="text-green-600 bg-green-50 px-3 py-1.5 rounded-lg flex items-center gap-1">
+                         ✓ Signed
+                       </span>
                     )}
                     <Link
                       href={`/admin/candidate/${offer.candidate?.id}`}
-                      className="rounded-lg border border-gray-100 bg-white px-3 py-1.5 text-gray-400 hover:border-gray-200 hover:text-gray-600 transition-all"
+                      className="rounded-lg border border-gray-100 bg-white px-3 py-1.5 text-gray-400 hover:border-gray-200 hover:text-gray-600 transition-all font-sans"
                     >
-                      View Profile
+                      Profile
                     </Link>
                   </div>
                 </td>

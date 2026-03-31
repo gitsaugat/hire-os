@@ -21,7 +21,7 @@ export default async function InterviewPage({ params }) {
 
   // 2. Access Control / Status Check
   if (interview.status === 'completed') {
-    redirect(`/interview/${id}/summary`)
+    redirect('/admin/interviews')
   }
 
   // 3. Fetch Candidate Data

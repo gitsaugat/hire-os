@@ -13,6 +13,7 @@ export default function StatusBadge({ status, variant = 'default' }) {
     INTERVIEW_SCHEDULING:   { bg: 'bg-purple-100',  text: 'text-purple-800' },
     INTERVIEW_SCHEDULED:    { bg: 'bg-purple-100',  text: 'text-purple-800' },
     INTERVIEW_COMPLETED:    { bg: 'bg-teal-100',    text: 'text-teal-800' },
+    INTERVIEW_DONE:         { bg: 'bg-teal-100',    text: 'text-teal-800' },
     OFFER_PENDING:          { bg: 'bg-orange-100',  text: 'text-orange-800' },
     OFFER_SENT:             { bg: 'bg-orange-100',  text: 'text-orange-800' },
     OFFER_SIGNED:           { bg: 'bg-green-100',   text: 'text-green-800' },

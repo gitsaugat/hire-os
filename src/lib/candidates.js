@@ -116,7 +116,8 @@ export async function updateCandidateStatus(
   if (isInterviewExit) {
     console.log(`[Cleanup] Candidate ${candidateId} leaving INTERVIEW_SCHEDULED. Deleting meetings.`)
     const { data: interview } = await supabaseAdmin.from('interviews').select('*').eq('candidate_id', candidateId).maybeSingle()
-    if (interview) {
+    if (interview && interview.status !== 'completed') {
+      console.log(`[Cleanup] Deleting active meeting for candidate ${candidateId}`)
       await supabaseAdmin.from('interviews').delete().eq('id', interview.id)
       // Non-blocking calendar cancellation
       import('./google-calendar').then(gc => {

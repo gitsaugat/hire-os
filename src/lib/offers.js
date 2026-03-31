@@ -14,7 +14,9 @@ export async function createOffer(offerData) {
       start_date: offerData.start_date,
       expiration_date: offerData.expiration_date,
       status: offerData.status || 'PENDING_REVIEW',
-      notes: offerData.notes
+      notes: offerData.notes,
+      ai_insights: offerData.ai_insights,
+      signing_token: offerData.signing_token || crypto.randomUUID()
     }])
     .select()
     .single()

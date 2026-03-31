@@ -61,6 +61,9 @@ export default function InterviewRoom({ interview, candidate, interviewerName })
   const timerRef = useRef(null)
   const startedAtRef = useRef(null)
 
+  const isCompletedRef = useRef(false)
+  const lastSyncedNotesRef = useRef(0)
+
   // Initialization & SessionStorage
   useEffect(() => {
     const initRoom = async () => {
@@ -78,7 +81,8 @@ export default function InterviewRoom({ interview, candidate, interviewerName })
           allNotes: [],
           isMuted: false,
           isCameraOff: false,
-          status: 'in_progress'
+          status: 'in_progress',
+          isAutoCompleted: false
         }
         
         // Fetch generated notes from Claude
@@ -105,7 +109,8 @@ export default function InterviewRoom({ interview, candidate, interviewerName })
         
         sessionStorage.setItem(sessionKey, JSON.stringify(state))
       } else {
-        setIsAnalyzing(false) // Already generated before
+        setIsAnalyzing(false)
+        if (state.isAutoCompleted) isCompletedRef.current = true
       }
 
       startedAtRef.current = state.startedAt
@@ -117,9 +122,19 @@ export default function InterviewRoom({ interview, candidate, interviewerName })
     }
 
     initRoom()
+
+    // Tab Closure Handling
+    const handleBeforeUnload = (e) => {
+      if (isCompletedRef.current) return
+      e.preventDefault()
+      e.returnValue = 'Interview in progress. Closing this tab will attempt to save your progress and complete the interview.'
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [interview.id, candidate])
 
-  // Timer & Note Revealing
+  // Timer, Note Revealing & periodic Sync
   useEffect(() => {
     if (!isLoaded || isEnding) return
 
@@ -130,7 +145,7 @@ export default function InterviewRoom({ interview, candidate, interviewerName })
       const diffSeconds = Math.floor((now - startedAtRef.current) / 1000)
       setElapsedSeconds(diffSeconds)
 
-      // Random speaking simulation (approx 15-25s interval, 3-5s duration)
+      // Random speaking simulation
       if (Math.random() < 0.05 && !interviewerSpeaking && !candidateSpeaking) {
         if (Math.random() < 0.4) {
           setInterviewerSpeaking(true)
@@ -145,23 +160,37 @@ export default function InterviewRoom({ interview, candidate, interviewerName })
       const newRevealed = allNotes.filter(n => Math.floor(n.delay) <= diffSeconds)
       
       if (newRevealed.length > revealedNotes.length) {
-        // Format timestamp for newly revealed notes
         const mapped = newRevealed.map(n => ({
           ...n,
           timestamp: formatTime(n.delay)
         }))
         setRevealedNotes(mapped)
         
-        // Update session storage
         const state = JSON.parse(sessionStorage.getItem(sessionKey))
         state.revealedNotes = mapped
         sessionStorage.setItem(sessionKey, JSON.stringify(state))
+
+        // Periodic Sync to DB (every 3 notes or significant progress)
+        if (mapped.length >= lastSyncedNotesRef.current + 3) {
+          lastSyncedNotesRef.current = mapped.length
+          fetch('/api/interviews/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              interview_id: interview.id,
+              candidate: candidate,
+              notes: mapped.map(m => m.text),
+              isPartial: true // Optional flag if we want to distinguish
+            }),
+            keepalive: true
+          }).catch(err => console.error("Auto-sync failed", err))
+        }
       }
 
     }, 1000)
 
     return () => clearInterval(timerRef.current)
-  }, [isLoaded, allNotes, revealedNotes.length, isEnding, interviewerSpeaking, candidateSpeaking, interview.id])
+  }, [isLoaded, allNotes, revealedNotes.length, isEnding, interviewerSpeaking, candidateSpeaking, interview.id, candidate])
 
   // Actions
   const handleToggleMute = () => {
@@ -185,6 +214,7 @@ export default function InterviewRoom({ interview, candidate, interviewerName })
   }
 
   const handleEndInterview = async () => {
+    isCompletedRef.current = true
     setIsEnding(true)
     setShowConfirm(false)
     clearInterval(timerRef.current)
@@ -204,7 +234,7 @@ export default function InterviewRoom({ interview, candidate, interviewerName })
       
       if (data.success) {
         sessionStorage.removeItem(`interview_${interview.id}`)
-        router.push(`/interview/${interview.id}/summary`)
+        router.push('/admin/interviews')
       } else {
         alert("Failed to complete interview: " + data.error)
         setIsEnding(false)

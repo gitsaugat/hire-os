@@ -261,7 +261,7 @@ export async function confirmBooking(candidateId, startTime, endTime) {
     .single()
 
   // 1. Insert Interview
-  const { error: interviewError } = await supabaseAdmin
+  const { data: newInterview, error: interviewError } = await supabaseAdmin
     .from('interviews')
     .insert({
       candidate_id: candidateId,
@@ -270,6 +270,8 @@ export async function confirmBooking(candidateId, startTime, endTime) {
       end_time: endTime,
       status: 'CONFIRMED'
     })
+    .select('id')
+    .single()
 
   if (interviewError) throw interviewError
 
@@ -290,8 +292,8 @@ export async function confirmBooking(candidateId, startTime, endTime) {
       .catch(err => console.error('[Scheduling] Google Calendar sync failed:', err))
   })
 
-  if (candidateInfo) {
-    sendConfirmationEmail(candidateInfo, startTime, candidateInfo.role)
+  if (candidateInfo && newInterview) {
+    sendConfirmationEmail(candidateInfo, startTime, candidateInfo.role, newInterview.id)
       .catch(err => console.error('[Scheduling] Confirmation email failed:', err))
   }
 
@@ -304,7 +306,7 @@ export async function confirmBooking(candidateId, startTime, endTime) {
 export async function resolveCandidateByToken(token) {
   const { data, error } = await supabaseAdmin
     .from('candidates')
-    .select('id, email, name')
+    .select('id, email, name, status')
     .eq('scheduling_token', token)
     .single()
   
