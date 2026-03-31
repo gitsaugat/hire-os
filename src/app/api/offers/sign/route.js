@@ -55,15 +55,16 @@ export async function POST(req) {
 
     if (updateError) throw updateError
 
-    // 4. Update Candidate Status
-    await updateCandidateStatus(offer.candidate_id, 'OFFER_SIGNED', 'Offer officially signed by candidate.', 'SYSTEM')
-
-    // 5. Trigger Slack Integrations asynchronously
-    // We don't await these to hit the critical path, but they will run in the background
+    // 4. Trigger Official Onboarding & Slack Integrations asynchronously
+    const { sendOnboardingEmail } = await import('@/lib/email')
     Promise.all([
+      sendOnboardingEmail(offer.candidate, offer.candidate.role),
       notifyHRAboutAcceptance(offer.candidate, offer.candidate.role),
       attemptWorkspaceInvite(offer.candidate.email)
-    ]).catch(err => console.error('[SlackIntegrationError]', err))
+    ]).catch(err => console.error('[IntegrationError]', err))
+
+    // 5. Update Candidate Status directly to HIRED
+    await updateCandidateStatus(offer.candidate_id, 'HIRED', 'Offer signed and onboarding automatically initiated.', 'SYSTEM')
 
     // Revalidate admin paths so HR sees the updated status immediately
     revalidatePath('/admin/offers')

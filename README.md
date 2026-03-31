@@ -59,6 +59,9 @@ Uses AI-assisted inference with optional external data — robust even when prof
 - Generates available slots
 - Prevents double-booking using validation logic
 
+**[NEW] Handling Rescheduling Requests:** 
+Candidates can request a different time directly from the scheduling portal if the generated slots don't work. This request lands in the Admin Dashboard for an Approve/Reject HR review loop.
+
 **How Slot Generation & Holds Work (Under the Hood):**
 1. **Dynamic Generation:** When a candidate opens their scheduling link, the system fetches all confirmed HR interviews and active "Holds," then generates an array of open timeslots on the fly.
 2. **Optimistic Holds:** When a candidate clicks a specific timeslot, the system immediately attempts to insert a temporary "Hold" record in the database for that exact timeframe.
@@ -74,6 +77,18 @@ Uses AI-assisted inference with optional external data — robust even when prof
 - Slot conflicts (auto-regeneration)
 - Candidate no-response
 - Timezone inconsistencies
+
+---
+
+### 4. Background Follow-up Automation
+
+**What it does:**
+- A Cron job endpoint (`/api/cron/follow-up`) runs periodically to find candidates stuck in the `INTERVIEW_SCHEDULING` stage for more than 48 hours without selecting a slot.
+- Automatically sends an intelligent follow-up email urging them to select a time or request a new one.
+- Updates a `last_contacted_at` timestamp in the database to guarantee candidates are never spammed.
+
+**Why it matters:**
+Ensures zero candidates are "lost" in the pipeline due to simple inactivity. It automates one of the most tedious parts of HR follow-up seamlessly.
 
 ---
 
@@ -188,6 +203,8 @@ These can be replaced with:
 - Missing or invalid resume uploads  
 - Interview completion without transcript  
 - Offer signing without complete data  
+- Automated candidate inactivity drop-off (48hr cron)
+- Rescheduling race conditions and HR state tracking
 
 ---
 

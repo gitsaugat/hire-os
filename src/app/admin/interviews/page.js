@@ -1,5 +1,6 @@
 import { getConfirmedInterviews } from '@/lib/scheduling'
 import { getRoles } from '@/lib/roles'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import Link from 'next/link'
 import InterviewsClient from './InterviewsClient'
 
@@ -11,9 +12,10 @@ export default async function InterviewsPage({ searchParams }) {
   const roleFilter = params?.role || ''
   const dateFilter = params?.date || ''
 
-  const [{ data: rawInterviews, error }, { data: roles }] = await Promise.all([
+  const [{ data: rawInterviews, error }, { data: roles }, { data: requests }] = await Promise.all([
     getConfirmedInterviews({ roleId: roleFilter || undefined, date: dateFilter || undefined }),
     getRoles(),
+    supabaseAdmin.from('scheduling_requests').select('*, candidate:candidates(id, name, email, role:roles(title, team))').order('created_at', { ascending: false })
   ])
 
   // Filter out candidates who have already been offered
@@ -84,7 +86,7 @@ export default async function InterviewsPage({ searchParams }) {
       )}
 
       {/* Main Interviews List (Client Component) */}
-      <InterviewsClient interviews={interviews} />
+      <InterviewsClient interviews={interviews} schedulingRequests={requests || []} />
     </div>
   )
 }

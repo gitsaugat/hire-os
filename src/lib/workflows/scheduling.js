@@ -59,7 +59,7 @@ async function cleanupHolds() {
 /**
  * Fetch availability gaps for a candidate.
  */
-export async function getAvailability(candidateId) {
+export async function getAvailability(candidateId, ignoreOverrides = false) {
   // 0. Check if already has confirmed interview
   const { data: existing } = await supabaseAdmin
     .from('interviews')
@@ -75,6 +75,38 @@ export async function getAvailability(candidateId) {
 
   await cleanupHolds()
   console.log(`[Scheduling] Computing gaps for candidate: ${candidateId}`)
+
+  // 0.5 Check for HR Overrides first
+  if (!ignoreOverrides) {
+    const { data: request } = await supabaseAdmin
+      .from('scheduling_requests')
+      .select('offered_slots')
+      .eq('candidate_id', candidateId)
+      .eq('status', 'APPROVED')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      
+    if (request && request.offered_slots && request.offered_slots.length > 0) {
+      console.log(`[Scheduling] HR Override found. Serving locked slots for ${candidateId}`)
+      const options = request.offered_slots
+      
+      const expiresAt = new Date()
+      expiresAt.setHours(expiresAt.getHours() + 48)
+      
+      await supabaseAdmin.from('temporary_holds').delete().eq('candidate_id', candidateId)
+      
+      await supabaseAdmin.from('temporary_holds').insert(options.map(opt => ({
+        candidate_id: candidateId,
+        interviewer_email: DEFAULT_INTERVIEWER,
+        start_time: opt.start,
+        end_time: opt.end,
+        expires_at: expiresAt.toISOString()
+      })))
+      
+      return options
+    }
+  }
 
   // 1. Fetch External Busy (Google Cache)
   const googleBusy = await getCachedBusyTimes(DEFAULT_INTERVIEWER)
@@ -103,7 +135,7 @@ export async function getAvailability(candidateId) {
   console.log(`[Scheduling] Total busy blocks found: ${allBusy.length} (Google: ${googleBusy.length}, Interviews: ${interviews?.length}, Holds: ${otherHolds?.length})`)
 
   // 4. Compute Gaps (Next 5 business days, 9-5)
-  const options = []
+  const allOptions = []
   const timeMin = new Date()
   timeMin.setDate(timeMin.getDate() + 1)
   timeMin.setHours(0, 0, 0, 0)
@@ -111,14 +143,14 @@ export async function getAvailability(candidateId) {
   timeMax.setDate(timeMin.getDate() + 5)
 
   const currentDay = new Date(timeMin)
-  while (currentDay <= timeMax && options.length < 5) {
+  while (currentDay <= timeMax) {
     if (currentDay.getDay() !== 0 && currentDay.getDay() !== 6) {
       let slotTime = new Date(currentDay)
       slotTime.setHours(WORKING_HOURS_START, 0, 0, 0)
       const dayEnd = new Date(currentDay)
       dayEnd.setHours(WORKING_HOURS_END, 0, 0, 0)
 
-      while (slotTime < dayEnd && options.length < 5) {
+      while (slotTime < dayEnd) {
         const start = new Date(slotTime)
         const end = new Date(start)
         end.setMinutes(start.getMinutes() + SLOT_DURATION_MINS)
@@ -126,13 +158,40 @@ export async function getAvailability(candidateId) {
         
         const isBusy = allBusy.some(busy => (start < busy.end && end > busy.start))
         if (!isBusy) {
-          options.push({ start: start.toISOString(), end: end.toISOString() })
+          allOptions.push({ start: start.toISOString(), end: end.toISOString() })
         }
         slotTime.setMinutes(slotTime.getMinutes() + SLOT_DURATION_MINS)
       }
     }
     currentDay.setDate(currentDay.getDate() + 1)
   }
+
+  // 4.5 Spread Slots Across Different Dates
+  const options = []
+  const slotsByDay = {}
+  for (const opt of allOptions) {
+    const dayKey = opt.start.split('T')[0]
+    if (!slotsByDay[dayKey]) slotsByDay[dayKey] = []
+    slotsByDay[dayKey].push(opt)
+  }
+
+  let added = true
+  let index = 0
+  // Pick progressively from each day (Round-Robin layout) to maximize variety
+  while (options.length < 5 && added) {
+    added = false
+    for (const day of Object.keys(slotsByDay)) {
+      if (options.length >= 5) break
+      if (slotsByDay[day].length > index) {
+        options.push(slotsByDay[day][index])
+        added = true
+      }
+    }
+    index++
+  }
+
+  // Sort them chronologically so they appear logical to the user
+  options.sort((a, b) => new Date(a.start) - new Date(b.start))
 
   // 5. Create holds for this candidate (expires in 48h)
   const expiresAt = new Date()

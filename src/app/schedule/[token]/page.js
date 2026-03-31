@@ -1,6 +1,7 @@
 import { resolveCandidateByToken } from '@/lib/workflows/scheduling'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import SlotPicker from '@/components/SlotPicker'
+import RescheduleRequestModal from '@/components/scheduling/RescheduleRequestModal'
 import { notFound } from 'next/navigation'
 
 export const metadata = {
@@ -63,6 +64,8 @@ export default async function SchedulePage({ params }) {
               </header>
 
               <SlotPicker token={token} />
+              
+              <RescheduleRequestModal candidateId={candidate.id} />
             </>
           )}
 

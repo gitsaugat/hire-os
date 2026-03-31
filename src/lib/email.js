@@ -69,7 +69,28 @@ export async function sendEmail({ to, subject, html, text, candidateId }) {
 /**
  * Template for Interview Invitation (Scheduling).
  */
-export function getInvitationTemplate(candidateName, roleTitle, teamName, roleDescription, schedulingUrl) {
+export function getInvitationTemplate(candidateName, roleTitle, teamName, roleDescription, schedulingUrl, slots = []) {
+  
+  let slotsHtml = ''
+  if (slots.length > 0) {
+    slotsHtml = `
+      <div style="margin: 20px 0;">
+        <p style="color: #374151; font-weight: bold;">Here are a few times we have available over the coming days:</p>
+        <ul style="list-style-type: none; padding: 0; margin-bottom: 25px;">
+          ${slots.map(slot => {
+            const start = new Date(slot.start)
+            const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+            const timeStr = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+            return `<li style="background: #eef2ff; color: #4338ca; padding: 10px 15px; border-radius: 8px; margin-bottom: 8px; font-weight: bold; border: 1px solid #c7d2fe;">
+                      🗓️ ${dateStr} @ ${timeStr}
+                    </li>`
+          }).join('')}
+        </ul>
+        <p style="font-size: 13px; color: #6b7280; font-style: italic;">Note: Fast-moving calendar—these times may fill up quickly. Click the button below to lock in your preferred time, or see other available options if these don't work!</p>
+      </div>
+    `
+  }
+
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e8e8e8; border-radius: 10px;">
       <h2 style="color: #4f46e5;">Congratulations, ${candidateName}!</h2>
@@ -81,6 +102,8 @@ export function getInvitationTemplate(candidateName, roleTitle, teamName, roleDe
       </div>
 
       <p>Our team was impressed by your profile and we'd love to learn more about you. Please select a time for your interview using the link below:</p>
+      
+      ${slotsHtml}
       
       <div style="text-align: center; margin: 30px 0;">
         <a href="${schedulingUrl}" style="display: inline-block; background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">Schedule Your Interview</a>
@@ -135,7 +158,7 @@ export function getConfirmationTemplate(candidateName, roleTitle, startTime, int
 /**
  * Compatibility function for invitation emails.
  */
-export async function sendSchedulingEmail(candidate, token, role) {
+export async function sendSchedulingEmail(candidate, token, role, slots = []) {
   const schedulingUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/schedule/${token}`
   
   const html = getInvitationTemplate(
@@ -143,7 +166,8 @@ export async function sendSchedulingEmail(candidate, token, role) {
     role.title,
     role.team || 'Engineering',
     role.description,
-    schedulingUrl
+    schedulingUrl,
+    slots
   )
 
   return await sendEmail({

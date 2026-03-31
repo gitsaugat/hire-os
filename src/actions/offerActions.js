@@ -90,7 +90,7 @@ export async function sendOnboardingEmailAction(candidateId) {
     return { success: false, error: emailError || 'Failed to send onboarding email.' }
   }
 
-  await updateCandidateStatus(candidateId, 'ONBOARDING', 'Onboarding email sent manually by HR.', 'HUMAN')
+  await updateCandidateStatus(candidateId, 'HIRED', 'Onboarding email sent manually. Candidate is officially hired.', 'HUMAN')
   
   revalidatePath('/admin/offers')
   revalidatePath(`/admin/candidate/${candidateId}`)

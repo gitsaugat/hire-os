@@ -135,19 +135,10 @@ export default function OffersTable({ initialOffers }) {
                     )}
                     {offer.status === 'ACCEPTED' && (
                        <div className="flex gap-2 items-center">
-                         {offer.candidate.status === 'ONBOARDING_DONE' ? (
+                         {offer.candidate.status === 'HIRED' ? (
                            <div className="rounded-lg bg-emerald-50 px-4 py-1.5 text-emerald-600 flex items-center gap-1 cursor-default font-bold border border-emerald-100 text-xs">
-                             🎉 Onboarded
+                             🎉 Hired & Onboarding
                            </div>
-                         ) : offer.candidate.status === 'ONBOARDING' ? (
-                           <button
-                             onClick={() => handleOnboardingDone(offer.candidate.id)}
-                             disabled={isUpdating === offer.candidate.id}
-                             className="rounded-lg bg-purple-50 hover:bg-purple-100 px-4 py-1.5 text-purple-700 flex items-center gap-1 transition-all font-bold border border-purple-100 disabled:opacity-50 shadow-sm text-xs"
-                             title="Mark as fully onboarded"
-                           >
-                             ✅ Complete Onboarding
-                           </button>
                          ) : (
                            <button
                              onClick={() => handleOnboardingEmail(offer.candidate.id)}

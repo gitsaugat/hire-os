@@ -110,7 +110,14 @@ export async function screenCandidate(candidateId) {
       statusReason = 'Low AI evaluation score'
     } else if (score >= 50) {
       finalStatus = 'INTERVIEW_SCHEDULING'
-      statusReason = 'AI score meets recruitment threshold. Initiating scheduling.'
+      statusReason = 'Automated deep research completed. Initiating scheduling.'
+    }
+
+    // Add intermediate SHORTLISTED step for visual AI logging before moving to scheduling
+    if (finalStatus === 'INTERVIEW_SCHEDULING') {
+      await updateCandidateStatus(candidateId, 'SHORTLISTED', 'AI candidate profile analysis complete. Priority shortlist match.', 'AI')
+      // Artificial delay so the timestamps are distinct in the logs
+      await new Promise(r => setTimeout(r, 1000))
     }
 
     await updateCandidateStatus(candidateId, finalStatus, statusReason, 'AI')
