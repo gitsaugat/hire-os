@@ -87,59 +87,69 @@ export default async function InterviewsPage({ searchParams }) {
         </div>
       )}
 
-      {/* Interview List */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {!interviews || interviews.length === 0 ? (
-          <div className="lg:col-span-2 rounded-2xl border border-dashed border-gray-200 p-12 text-center text-gray-400 bg-white/50">
-            No confirmed interviews found for the selected criteria.
-          </div>
-        ) : (
-          interviews.map((interview) => (
-            <div key={interview.id} className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:border-indigo-100 hover:shadow-md transition-all">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 text-xl shadow-sm group-hover:from-indigo-500 group-hover:to-purple-600 group-hover:text-white transition-all transform group-hover:scale-105 duration-300">
-                    🗓️
-                  </div>
-                  <div>
-                    <Link href={`/admin/candidate/${interview.candidate?.id}`} className="text-base font-bold text-gray-900 hover:text-indigo-600 transition-colors">
-                      {interview.candidate?.name}
-                    </Link>
-                    <p className="text-xs text-gray-400 font-medium mt-0.5">
-                      {interview.candidate?.role?.title || 'Unknown Role'} • {interview.candidate?.role?.team || 'General'}
-                    </p>
-                  </div>
-                </div>
-                <StatusBadge status="INTERVIEW_SCHEDULED" />
-              </div>
-
-              <div className="mt-6 flex items-center justify-between border-t border-gray-50 pt-4">
-                <div className="flex items-center gap-2 text-indigo-600">
-                  <span className="text-xs font-black uppercase tracking-widest">Starts</span>
-                  <span className="text-sm font-bold">{formatDateTime(interview.start_time)}</span>
-                </div>
-                <div className="flex items-center gap-2 text-gray-400">
-                  <span className="text-xs font-bold uppercase tracking-widest">Duration</span>
-                  <span className="text-sm font-medium">45 min</span>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between rounded-xl bg-gray-50/50 p-3">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-green-500" />
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Interviewer</span>
-                  <span className="text-xs font-semibold text-gray-700">{interview.interviewer_email}</span>
-                </div>
-                <a 
-                  href={`mailto:${interview.candidate?.email}`}
-                  className="text-[10px] font-black text-indigo-500 hover:underline tracking-widest uppercase"
-                >
-                  Email Candidate
-                </a>
-              </div>
-            </div>
-          ))
-        )}
+      {/* Interview Table */}
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-gray-50/50 border-b border-gray-100">
+              <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Candidate</th>
+              <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Role & Team</th>
+              <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Schedule</th>
+              <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Interviewer</th>
+              <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {!interviews || interviews.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="px-6 py-12 text-center text-gray-400 italic">
+                  No confirmed interviews found.
+                </td>
+              </tr>
+            ) : (
+              interviews.map((interview) => (
+                <tr key={interview.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 font-bold text-xs">
+                        {interview.candidate?.name?.[0]}
+                      </div>
+                      <Link href={`/admin/candidate/${interview.candidate?.id}`} className="text-sm font-bold text-gray-900 hover:text-indigo-600 transition-colors">
+                        {interview.candidate?.name || 'Unknown Candidate'}
+                      </Link>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <span className="text-sm text-gray-700 font-medium">{interview.candidate?.role?.title || '—'}</span>
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{interview.candidate?.role?.team || 'General'}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-indigo-600">{formatDateTime(interview.start_time)}</span>
+                      <span className="text-[10px] text-gray-400 font-medium italic">45-minute window</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                      <span className="text-xs font-semibold text-gray-600">{interview.interviewer_email}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <a 
+                      href={`mailto:${interview.candidate?.email}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-100 bg-white px-3 py-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50 transition-all active:scale-95"
+                    >
+                      Email ↗
+                    </a>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   )

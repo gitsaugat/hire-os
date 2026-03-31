@@ -8,7 +8,7 @@ import { supabase } from './supabase'
  */
 export async function getConfirmedInterviews(filters = {}) {
   let query = supabase
-    .from('slots')
+    .from('interviews')
     .select(`
       *,
       candidate:candidates(
@@ -21,11 +21,6 @@ export async function getConfirmedInterviews(filters = {}) {
     .eq('status', 'CONFIRMED')
     .order('start_time', { ascending: true })
 
-  // Filter by role (via nested candidate)
-  if (filters.roleId) {
-    query = query.filter('candidate.role_id', 'eq', filters.roleId)
-  }
-
   // Filter by date (approximate for the full day)
   if (filters.date) {
     const startOfDay = `${filters.date}T00:00:00Z`
@@ -34,5 +29,12 @@ export async function getConfirmedInterviews(filters = {}) {
   }
 
   const { data, error } = await query
-  return { data, error }
+
+  // Manual filter for roleId if needed (Supabase can't always filter by nested relation role_id easily depending on schema)
+  let filteredData = data
+  if (filters.roleId && data) {
+    filteredData = data.filter(i => i.candidate?.role_id === filters.roleId || i.candidate?.role?.id === filters.roleId)
+  }
+
+  return { data: filteredData, error }
 }

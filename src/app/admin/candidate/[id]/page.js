@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getCandidateById, getSlotsByCandidateId } from '@/lib/candidates'
+import { getCandidateById, getSchedulingDataByCandidateId } from '@/lib/candidates'
 import { getSignedResumeUrl } from '@/lib/storage'
 import StatusBadge from '@/components/StatusBadge'
 import StatusTimeline from '@/components/StatusTimeline'
@@ -23,10 +23,10 @@ export default async function CandidateDetailPage({ params }) {
   const { id } = await params
   const [
     { data: candidate, error },
-    { data: slots }
+    { data: schedulingData }
   ] = await Promise.all([
     getCandidateById(id, true),
-    getSlotsByCandidateId(id)
+    getSchedulingDataByCandidateId(id)
   ])
 
   if (error || !candidate) notFound()
@@ -107,7 +107,11 @@ export default async function CandidateDetailPage({ params }) {
           </div>
 
           {/* Interview Scheduling */}
-          <InterviewScheduler candidate={candidate} initialSlots={slots || []} />
+          <InterviewScheduler 
+            candidate={candidate} 
+            interviews={schedulingData?.interviews || []} 
+            holds={schedulingData?.holds || []} 
+          />
 
           {/* AI Score & Insights */}
           {(candidate.ai_profile != null || candidate.ai_score != null || candidate.status === 'SCREENING' || candidate.status === 'SCREENING_FAILED') && (

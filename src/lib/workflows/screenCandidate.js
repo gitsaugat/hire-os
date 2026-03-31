@@ -3,7 +3,7 @@ import { updateCandidateStatus } from '../candidates'
 import { evaluateCandidate } from '../ai'
 import { extractTextFromPdf } from '../pdf'
 import { researchCandidate } from './researchCandidate'
-import { generateSlots } from './scheduling'
+import { initiateScheduling } from './scheduling'
 
 /**
  * Background AI screening + research workflow.
@@ -100,19 +100,8 @@ export async function screenCandidate(candidateId) {
 
     if (updateError) throw updateError
 
-    // ── Step 5: AI Research (always runs, awaited) ───────────────
-    console.log(`[screenCandidate] Triggering research profile...`)
-    try {
-      await researchCandidate(candidateId, resumeText)
-    } catch (err) {
-      console.error(`[screenCandidate] Research failed for ${candidateId}:`, err)
-      // We continue anyway so evaluation is saved
-    }
-
     // ── Step 6: Determine + save final status ──────────────────────
     const score = aiResult.score || 0
-    const confidence = aiResult.confidence || 0
-
     let finalStatus = 'SCREENED'
     let statusReason = 'AI screening completed'
 
@@ -120,20 +109,30 @@ export async function screenCandidate(candidateId) {
       finalStatus = 'REJECTED'
       statusReason = 'Low AI evaluation score'
     } else if (score >= 50) {
-      finalStatus = 'SHORTLISTED'
-      statusReason = 'AI score meets recruitment threshold'
+      finalStatus = 'INTERVIEW_SCHEDULING'
+      statusReason = 'AI score meets recruitment threshold. Initiating scheduling.'
     }
 
     await updateCandidateStatus(candidateId, finalStatus, statusReason, 'AI')
 
     console.log(`[screenCandidate] Evaluation complete. Status: ${finalStatus}`)
 
-    // ── Step 7: Automated Scheduling (if shortlisted) ────────────
-    if (finalStatus === 'SHORTLISTED') {
+    // ── Step 5: AI Research & Step 7: Scheduling (Parallel/Background) ──
+    const researchTask = researchCandidate(candidateId, resumeText).catch(err =>
+      console.error(`[screenCandidate] Research failed for ${candidateId}:`, err)
+    )
+
+    if (finalStatus === 'INTERVIEW_SCHEDULING') {
       console.log(`[screenCandidate] Initiating scheduling flow for ${candidateId}`)
-      await generateSlots(candidateId)
+      initiateScheduling(candidateId).catch(err =>
+        console.error(`[screenCandidate] Scheduling initiation failed for ${candidateId}:`, err)
+      )
     }
 
+    // We don't necessarily need to await research for the screening flow to be 'complete'
+    // but we can if we want to ensure logs are in order.
+    // For "immediate" scheduling, we didn't await scheduling above.
+    
     console.log(`[screenCandidate] Pipeline complete for ${candidateId}.`)
 
   } catch (err) {

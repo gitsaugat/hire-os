@@ -175,18 +175,38 @@ export async function getCandidates(filters = {}) {
 }
 
 /**
- * Fetch slots associated with a specific candidate (HELD or CONFIRMED).
+ * Fetch scheduling data associated with a specific candidate (Confirmed Interviews & Active Holds).
  *
  * @param {string} candidateId
  */
-export async function getSlotsByCandidateId(candidateId) {
-  const { data, error } = await supabaseAdmin
-    .from('slots')
-    .select('*')
-    .eq('held_by_candidate_id', candidateId)
-    .order('start_time', { ascending: true })
+export async function getSchedulingDataByCandidateId(candidateId) {
+  const [
+    { data: interviews, error: interviewError },
+    { data: holds, error: holdError }
+  ] = await Promise.all([
+    supabaseAdmin
+      .from('interviews')
+      .select('*')
+      .eq('candidate_id', candidateId)
+      .order('start_time', { ascending: true }),
+    supabaseAdmin
+      .from('temporary_holds')
+      .select('*')
+      .eq('candidate_id', candidateId)
+      .gt('expires_at', new Date().toISOString())
+      .order('start_time', { ascending: true })
+  ])
 
-  return { data, error }
+  if (interviewError || holdError) {
+    return { error: interviewError || holdError }
+  }
+
+  return { 
+    data: {
+      interviews: interviews || [],
+      holds: holds || []
+    } 
+  }
 }
 
 /**

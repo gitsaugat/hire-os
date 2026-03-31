@@ -87,16 +87,50 @@ function getMockBusyTimes(timeMin, timeMax) {
 }
 
 /**
- * Optional: Create a calendar event for a confirmed interview.
+ * Create a calendar event for a confirmed interview.
+ * REQUIRES: Google Service Account or OAuth2 token in .env.local
  */
 export async function createCalendarEvent(candidate, slot) {
-  const apiKey = process.env.GOOGLE_CALENDAR_API_KEY
-  if (!apiKey) {
-    console.warn('[GoogleCalendar] Cannot create live event: API key missing.')
+  const accessToken = process.env.GOOGLE_CALENDAR_ACCESS_TOKEN
+  const calendarId = slot.email || 'primary'
+
+  if (!accessToken) {
+    console.warn('[GoogleCalendar] No access token found. Skipping live event creation.')
+    console.log('[GoogleCalendar] Mocking event creation for:', candidate?.name, 'at:', slot.start_time)
     return { success: true, mock: true }
   }
 
-  // Implementation for calendar.events.insert would go here
-  // Requires OAuth2/Service Account token, not just API key
-  return { success: true }
+  try {
+    const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        summary: `Interview: ${candidate.name} x HireOS`,
+        description: `Ref: ${candidate.email}\nJoined via HireOS Automated Scheduler.`,
+        start: { dateTime: slot.start_time },
+        end: { dateTime: slot.end_time },
+        attendees: [
+          { email: candidate.email },
+          { email: slot.email }
+        ],
+        reminders: {
+          useDefault: true
+        }
+      })
+    })
+
+    if (!response.ok) {
+      const err = await response.json()
+      throw new Error(err.error?.message || 'Google API Error')
+    }
+
+    console.log(`[GoogleCalendar] Event created successfully for ${candidate.name}`)
+    return { success: true }
+  } catch (error) {
+    console.error('[GoogleCalendar] Failed to create event:', error.message)
+    return { success: false, error: error.message }
+  }
 }

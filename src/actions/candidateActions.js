@@ -4,7 +4,7 @@ import { createCandidate, updateCandidateStatus, deleteCandidateById } from '@/l
 import { validateResumeFile, uploadResume } from '@/lib/storage'
 import { screenCandidate } from '@/lib/workflows/screenCandidate'
 import { researchCandidate } from '@/lib/workflows/researchCandidate'
-import { generateSlots } from '@/lib/workflows/scheduling'
+import { initiateScheduling } from '@/lib/workflows/scheduling'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -130,8 +130,8 @@ export async function updateStatusAction(formData) {
     researchCandidate(candidateId).catch(err =>
       console.error(`[updateStatusAction] Research failed for ${candidateId}:`, err)
     )
-    generateSlots(candidateId).catch(err =>
-      console.error(`[updateStatusAction] Slot generation failed for ${candidateId}:`, err)
+    initiateScheduling(candidateId).catch(err =>
+      console.error(`[updateStatusAction] Scheduling initiation failed for ${candidateId}:`, err)
     )
   }
 
@@ -150,7 +150,7 @@ export async function regenerateSlotsAction(candidateId) {
 
   console.log(`[regenerateSlotsAction] Manually triggering slot generation for: ${candidateId}`)
   try {
-    await generateSlots(candidateId)
+    await initiateScheduling(candidateId)
     revalidatePath(`/admin/candidate/${candidateId}`)
     return { success: true }
   } catch (err) {

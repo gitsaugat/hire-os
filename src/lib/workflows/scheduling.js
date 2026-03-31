@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../supabase-admin'
 import { getBusyTimes } from '../google-calendar'
 import { updateCandidateStatus } from '../candidates'
+import { sendSchedulingEmail, sendConfirmationEmail } from '../email'
 
 const SLOT_DURATION_MINS = 45
 const WORKING_HOURS_START = 9
@@ -8,210 +9,301 @@ const WORKING_HOURS_END = 17 // 5 PM
 const DEFAULT_INTERVIEWER = 'developer.saugatsiwakoti@gmail.com'
 
 /**
- * Generate interview slots for a shortlisted candidate.
- * 1. Fetch busy times from Google Calendar
- * 2. Compute available 45-min windows (9-5, weekdays)
- * 3. Save as AVAILABLE slots
- * 4. HOLD 5 slots for this candidate
+ * Get cached busy times for an interviewer, refreshing if > 24h old.
  */
-export async function generateSlots(candidateId) {
-  await cleanupExpiredSlots()
-  console.log(`[Scheduling] Generating slots for candidate: ${candidateId}`)
+export async function getCachedBusyTimes(email, forceRefresh = false) {
+  const { data: cache } = await supabaseAdmin
+    .from('calendar_cache')
+    .select('*')
+    .eq('interviewer_email', email)
+    .maybeSingle()
 
-  // 1. Define window: Tomorrow to 5 days from now
-  const now = new Date()
-  const timeMin = new Date(now)
-  timeMin.setDate(now.getDate() + 1)
+  const oneDayAgo = new Date()
+  oneDayAgo.setHours(oneDayAgo.getHours() - 24)
+
+  if (!forceRefresh && cache && new Date(cache.last_fetched_at) > oneDayAgo) {
+    console.log(`[Scheduling] Using cached calendar for ${email}`)
+    return cache.busy_blocks.map(b => ({ start: new Date(b.start), end: new Date(b.end) }))
+  }
+
+  console.log(`[Scheduling] Cache stales or forced. Fetching Google Calendar for ${email}`)
+  const timeMin = new Date()
   timeMin.setHours(0, 0, 0, 0)
+  const timeMax = new Date(timeMin)
+  timeMax.setDate(timeMin.getDate() + 14) // Cache 2 weeks of availability
 
+  const busyTimes = await getBusyTimes(email, timeMin, timeMax)
+  
+  await supabaseAdmin
+    .from('calendar_cache')
+    .upsert({
+      interviewer_email: email,
+      busy_blocks: busyTimes,
+      last_fetched_at: new Date().toISOString()
+    })
+
+  return busyTimes
+}
+
+/**
+ * Clean up expired temporary holds.
+ */
+async function cleanupHolds() {
+  const { error } = await supabaseAdmin
+    .from('temporary_holds')
+    .delete()
+    .lt('expires_at', new Date().toISOString())
+  if (error) console.error('[Scheduling] Hold cleanup failed:', error.message)
+}
+
+/**
+ * Fetch availability gaps for a candidate.
+ */
+export async function getAvailability(candidateId) {
+  // 0. Check if already has confirmed interview
+  const { data: existing } = await supabaseAdmin
+    .from('interviews')
+    .select('id')
+    .eq('candidate_id', candidateId)
+    .eq('status', 'CONFIRMED')
+    .maybeSingle()
+  
+  if (existing) {
+    console.log(`[Scheduling] Candidate ${candidateId} already has an interview. Returning no gaps.`)
+    return []
+  }
+
+  await cleanupHolds()
+  console.log(`[Scheduling] Computing gaps for candidate: ${candidateId}`)
+
+  // 1. Fetch External Busy (Google Cache)
+  const googleBusy = await getCachedBusyTimes(DEFAULT_INTERVIEWER)
+
+  // 2. Fetch Internal Busy (Confirmed Interviews)
+  const { data: interviews } = await supabaseAdmin
+    .from('interviews')
+    .select('start_time, end_time')
+    .eq('interviewer_email', DEFAULT_INTERVIEWER)
+    .gte('end_time', new Date().toISOString())
+
+  // 3. Fetch Internal Busy (Other active holds)
+  const { data: otherHolds } = await supabaseAdmin
+    .from('temporary_holds')
+    .select('start_time, end_time')
+    .eq('interviewer_email', DEFAULT_INTERVIEWER)
+    .neq('candidate_id', candidateId) // Ignore current candidate's holds
+
+  // Combine all busy blocks
+  const allBusy = [
+    ...googleBusy,
+    ...(interviews || []).map(i => ({ start: new Date(i.start_time), end: new Date(i.end_time) })),
+    ...(otherHolds || []).map(h => ({ start: new Date(h.start_time), end: new Date(h.end_time) }))
+  ]
+
+  console.log(`[Scheduling] Total busy blocks found: ${allBusy.length} (Google: ${googleBusy.length}, Interviews: ${interviews?.length}, Holds: ${otherHolds?.length})`)
+
+  // 4. Compute Gaps (Next 5 business days, 9-5)
+  const options = []
+  const timeMin = new Date()
+  timeMin.setDate(timeMin.getDate() + 1)
+  timeMin.setHours(0, 0, 0, 0)
   const timeMax = new Date(timeMin)
   timeMax.setDate(timeMin.getDate() + 5)
-  timeMax.setHours(23, 59, 59, 999)
 
-  // 2. Fetch busy times
-  const busyTimes = await getBusyTimes(DEFAULT_INTERVIEWER, timeMin, timeMax)
-
-  // 3. Generate candidate slots
-  const potentialSlots = []
   const currentDay = new Date(timeMin)
-
-  while (currentDay <= timeMax) {
-    const isWeekend = currentDay.getDay() === 0 || currentDay.getDay() === 6
-
-    if (!isWeekend) {
-      // Start at 9 AM
+  while (currentDay <= timeMax && options.length < 5) {
+    if (currentDay.getDay() !== 0 && currentDay.getDay() !== 6) {
       let slotTime = new Date(currentDay)
       slotTime.setHours(WORKING_HOURS_START, 0, 0, 0)
-
-      // End at 5 PM
       const dayEnd = new Date(currentDay)
       dayEnd.setHours(WORKING_HOURS_END, 0, 0, 0)
 
-      while (slotTime < dayEnd) {
+      while (slotTime < dayEnd && options.length < 5) {
         const start = new Date(slotTime)
         const end = new Date(start)
         end.setMinutes(start.getMinutes() + SLOT_DURATION_MINS)
-
         if (end > dayEnd) break
-
-        // Check if this slot overlaps with any busy time from Google
-        const isBusy = busyTimes.some(busy => {
-          return (start < busy.end && end > busy.start)
-        })
-
-        if (!isBusy) {
-          potentialSlots.push({
-            interviewer_email: DEFAULT_INTERVIEWER,
-            start_time: start.toISOString(),
-            end_time: end.toISOString(),
-            status: 'AVAILABLE'
-          })
-        }
-
-        // Increment by slot duration (45 mins)
-        slotTime.setMinutes(slotTime.getMinutes() + SLOT_DURATION_MINS)
         
-        if (potentialSlots.length >= 20) break 
+        const isBusy = allBusy.some(busy => (start < busy.end && end > busy.start))
+        if (!isBusy) {
+          options.push({ start: start.toISOString(), end: end.toISOString() })
+        }
+        slotTime.setMinutes(slotTime.getMinutes() + SLOT_DURATION_MINS)
       }
     }
     currentDay.setDate(currentDay.getDate() + 1)
-    if (potentialSlots.length >= 20) break
   }
 
-  if (potentialSlots.length === 0) {
-    console.warn('[Scheduling] No available slots found in the next 5 days.')
-    return
-  }
-
-  // 4. Insert AVAILABLE slots 
-  // We use a custom approach: try to insert each one, ignore if it already exists
-  console.log(`[Scheduling] Attempting to ensure ${potentialSlots.length} available slots exist...`)
-  
-  const insertedSlots = []
-  for (const slot of potentialSlots.slice(0, 15)) {
-    const { data: existing } = await supabaseAdmin
-      .from('slots')
-      .select('id')
-      .eq('interviewer_email', slot.interviewer_email)
-      .eq('start_time', slot.start_time)
-      .maybeSingle()
-
-    if (existing) {
-      insertedSlots.push(existing)
-    } else {
-      const { data: newlyInserted, error: insertError } = await supabaseAdmin
-        .from('slots')
-        .insert(slot)
-        .select()
-        .single()
-      
-      if (!insertError && newlyInserted) {
-        insertedSlots.push(newlyInserted)
-      } else if (insertError && insertError.code !== '23P01') {
-        console.error('[Scheduling] Unexpected insert error:', insertError.code, insertError.message)
-      }
-    }
-  }
-
-  console.log(`[Scheduling] Confirmed/Created ${insertedSlots.length} total slots for pool.`)
-
-  if (insertedSlots.length === 0) {
-    console.error('[Scheduling] Could not acquire any slots for pool.')
-    return
-  }
-
-  // 5. HOLD 5 slots for the candidate
-  console.log(`[Scheduling] Holding 5 slots for candidate...`)
+  // 5. Create holds for this candidate (expires in 48h)
   const expiresAt = new Date()
   expiresAt.setHours(expiresAt.getHours() + 48)
 
-  const slotsToHold = insertedSlots.slice(0, 5).map(s => s.id)
+  if (options.length > 0) {
+    console.log(`[Scheduling] Inserting ${options.length} holds for ${candidateId}`)
+    // Delete old holds for this candidate first
+    await supabaseAdmin
+      .from('temporary_holds')
+      .delete()
+      .eq('candidate_id', candidateId)
 
-  const { error: holdError } = await supabaseAdmin
-    .from('slots')
-    .update({
-      status: 'HELD',
-      held_by_candidate_id: candidateId,
-      expires_at: expiresAt.toISOString()
-    })
-    .in('id', slotsToHold)
-
-  if (holdError) {
-    console.error('[Scheduling] Failed to hold slots:', holdError.code, holdError.message)
+    const { error: insertError } = await supabaseAdmin
+      .from('temporary_holds')
+      .insert(options.map(opt => ({
+        candidate_id: candidateId,
+        interviewer_email: DEFAULT_INTERVIEWER,
+        start_time: opt.start,
+        end_time: opt.end,
+        expires_at: expiresAt.toISOString()
+      })))
+    
+    if (insertError) {
+      console.error(`[Scheduling] FAILED to insert holds for ${candidateId}:`, insertError.message)
+    } else {
+      console.log(`[Scheduling] Successfully inserted holds for ${candidateId}`)
+    }
+  } else {
+    console.warn(`[Scheduling] NO available options found for ${candidateId}`)
   }
 
-  console.log(`[Scheduling] Generated and held ${slotsToHold.length} slots for ${candidateId}.`)
+  return options
 }
 
 /**
- * Confirm a selected slot for a candidate.
+ * Handle initial scheduling for a shortlisted candidate.
  */
-export async function confirmSlot(candidateId, slotId) {
-  console.log(`[Scheduling] Confirming slot ${slotId} for candidate ${candidateId}`)
-
-  // 1. Fetch the slot and validate
-  const { data: slot, error: fetchError } = await supabaseAdmin
-    .from('slots')
-    .select('*')
-    .eq('id', slotId)
+export async function initiateScheduling(candidateId) {
+  console.log(`[Scheduling] Initiating flow for candidate: ${candidateId}`)
+  
+  // 1. Ensure token
+  const { data: candidate } = await supabaseAdmin
+    .from('candidates')
+    .select('email, scheduling_token')
+    .eq('id', candidateId)
     .single()
 
-  if (fetchError || !slot) throw new Error('Slot not found.')
-
-  if (slot.status !== 'HELD' || slot.held_by_candidate_id !== candidateId) {
-    throw new Error('Slot is no longer reserved for you.')
+  let token = candidate?.scheduling_token
+  if (!token) {
+    token = crypto.randomUUID()
+    await supabaseAdmin.from('candidates').update({ scheduling_token: token }).eq('id', candidateId)
   }
 
-  if (new Date(slot.expires_at) < new Date()) {
-    throw new Error('Reservation has expired.')
+  // 2. Trigger invite email (availability computed on page load)
+  await sendSchedulingEmail(candidate.email, token)
+  return { success: true }
+}
+
+/**
+ * Confirm booking (with Outcome A/B).
+ */
+export async function confirmBooking(candidateId, startTime, endTime) {
+  console.log(`[Scheduling] Attempting booking for ${candidateId} at ${startTime}`)
+
+  // 1. Check if hold still valid
+  const { data: hold } = await supabaseAdmin
+    .from('temporary_holds')
+    .select('*')
+    .eq('candidate_id', candidateId)
+    .eq('start_time', startTime)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle()
+
+  if (!hold) {
+    console.log('[Scheduling] No active hold found. Refreshing availability.')
+    const newSlots = await getAvailability(candidateId)
+    return { conflict: true, message: 'Your session expired. Please pick a new time.', new_slots: newSlots }
   }
 
-  // 2. Confirm the selected slot
-  const { error: confirmError } = await supabaseAdmin
-    .from('slots')
-    .update({ status: 'CONFIRMED' })
-    .eq('id', slotId)
+  // 2. Prevent Duplicate Interview for same Candidate
+  const { data: existingInterview, error: existingError } = await supabaseAdmin
+    .from('interviews')
+    .select('id, start_time')
+    .eq('candidate_id', candidateId)
+    .eq('status', 'CONFIRMED')
+    .maybeSingle()
 
-  if (confirmError) throw confirmError
+  if (existingInterview) {
+    console.warn(`[Scheduling] Candidate ${candidateId} already has an interview scheduled for ${existingInterview.start_time}`)
+    return { conflict: true, message: 'You already have an interview scheduled. Please contact support to reschedule.', confirmed: false }
+  }
 
-  // 3. Release other held slots for this candidate
-  await supabaseAdmin
-    .from('slots')
-    .update({
-      status: 'AVAILABLE',
-      held_by_candidate_id: null,
-      expires_at: null
+  // 3. Final Overlap Check (Interviews + Other Active Holds)
+  // Standard overlap: (start_time < requested_end) AND (end_time > requested_start)
+  const { data: overlaps, error: overlapError } = await supabaseAdmin
+    .from('interviews')
+    .select('id')
+    .eq('interviewer_email', DEFAULT_INTERVIEWER)
+    .lt('start_time', endTime)
+    .gt('end_time', startTime)
+    .maybeSingle()
+
+  const { data: overlapHold, error: holdError } = await supabaseAdmin
+    .from('temporary_holds')
+    .select('id')
+    .eq('interviewer_email', DEFAULT_INTERVIEWER)
+    .neq('candidate_id', candidateId)
+    .lt('start_time', endTime)
+    .gt('end_time', startTime)
+    .maybeSingle()
+
+  if (overlaps || overlapHold) {
+     console.warn('[Scheduling] CONFLICT DETECTED at confirmation. Slot already taken.')
+     // Forced cache refresh on conflict to be safe
+     await getCachedBusyTimes(DEFAULT_INTERVIEWER, true)
+     const newSlots = await getAvailability(candidateId)
+     return { conflict: true, message: 'That slot was just taken. Here are updated options:', new_slots: newSlots }
+  }
+
+  // ── Success (Booking) ──
+  const { data: candidateInfo } = await supabaseAdmin.from('candidates').select('name, email').eq('id', candidateId).single()
+
+  // 1. Insert Interview
+  const { error: interviewError } = await supabaseAdmin
+    .from('interviews')
+    .insert({
+      candidate_id: candidateId,
+      interviewer_email: DEFAULT_INTERVIEWER,
+      start_time: startTime,
+      end_time: endTime,
+      status: 'CONFIRMED'
     })
-    .eq('held_by_candidate_id', candidateId)
-    .eq('status', 'HELD')
 
-  // 4. Update candidate status
+  if (interviewError) throw interviewError
+
+  // 2. Cleanup all holds for this candidate
+  await supabaseAdmin.from('temporary_holds').delete().eq('candidate_id', candidateId)
+
+  // 3. Update candidate status
   await updateCandidateStatus(
     candidateId,
     'INTERVIEW_SCHEDULED',
-    `Interview confirmed for ${new Date(slot.start_time).toLocaleString()}`,
+    `Interview confirmed for ${new Date(startTime).toLocaleString()}`,
     'AI'
   )
 
-  console.log(`[Scheduling] Confirmation complete for ${candidateId}.`)
-  return { success: true, slot }
+  // 4. Synchronization (Google Calendar + Email) - Non-blocking
+  import('../google-calendar').then(gc => {
+    gc.createCalendarEvent(candidateInfo, { start_time: startTime, end_time: endTime, email: DEFAULT_INTERVIEWER })
+      .catch(err => console.error('[Scheduling] Google Calendar sync failed:', err))
+  })
+
+  if (candidateInfo) {
+    sendConfirmationEmail(candidateInfo.email, startTime)
+      .catch(err => console.error('[Scheduling] Confirmation email failed:', err))
+  }
+
+  return { confirmed: true }
 }
 
 /**
- * Cleanup job: Find expired HELD slots and reset to AVAILABLE.
+ * Resolve candidate from token.
  */
-export async function cleanupExpiredSlots() {
-  const now = new Date().toISOString()
-
-  const { error } = await supabaseAdmin
-    .from('slots')
-    .update({
-      status: 'AVAILABLE',
-      held_by_candidate_id: null,
-      expires_at: null
-    })
-    .eq('status', 'HELD')
-    .lt('expires_at', now)
-
-  if (error) console.error('[Scheduling] Cleanup failed:', error.message)
+export async function resolveCandidateByToken(token) {
+  const { data, error } = await supabaseAdmin
+    .from('candidates')
+    .select('id, email, name')
+    .eq('scheduling_token', token)
+    .single()
+  
+  if (error || !data) return null
+  return data
 }
