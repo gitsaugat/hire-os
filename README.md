@@ -59,9 +59,16 @@ Uses AI-assisted inference with optional external data — robust even when prof
 - Generates available slots
 - Prevents double-booking using validation logic
 
+**How Slot Generation & Holds Work (Under the Hood):**
+1. **Dynamic Generation:** When a candidate opens their scheduling link, the system fetches all confirmed HR interviews and active "Holds," then generates an array of open timeslots on the fly.
+2. **Optimistic Holds:** When a candidate clicks a specific timeslot, the system immediately attempts to insert a temporary "Hold" record in the database for that exact timeframe.
+3. **Conflict Resolution:** Since the database enforces unique constraints on scheduled slots, if another candidate happened to click that exact same slot milliseconds earlier, the database write fails.
+   - If the Hold succeeds: The interview is officially booked, calendar invites are dispatched out via SendGrid, and the Hold becomes an active Interview record.
+   - If the Hold fails (Conflict): The candidate is gracefully notified that the slot was just taken, the outdated slot is removed from their view, and fresh available slots are regenerated instantly for them to try again.
+
 **Key Design Choice:**
-- Validation-on-selection instead of slot locking  
-- Prevents slot starvation if candidates abandon scheduling
+- Validation-on-selection instead of persistent "Slot Locking" when the page loads.  
+- Prevents unused slot starvation in case multiple candidates open their emails simultaneously but abandon the scheduling page.
 
 **Edge Cases Handled:**
 - Slot conflicts (auto-regeneration)
