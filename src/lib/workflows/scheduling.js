@@ -177,7 +177,7 @@ export async function initiateScheduling(candidateId) {
   // 1. Ensure token
   const { data: candidate } = await supabaseAdmin
     .from('candidates')
-    .select('email, scheduling_token')
+    .select('*, role:roles(*)')
     .eq('id', candidateId)
     .single()
 
@@ -188,7 +188,7 @@ export async function initiateScheduling(candidateId) {
   }
 
   // 2. Trigger invite email (availability computed on page load)
-  await sendSchedulingEmail(candidate.email, token)
+  await sendSchedulingEmail(candidate, token, candidate.role)
   return { success: true }
 }
 
@@ -254,7 +254,11 @@ export async function confirmBooking(candidateId, startTime, endTime) {
   }
 
   // ── Success (Booking) ──
-  const { data: candidateInfo } = await supabaseAdmin.from('candidates').select('name, email').eq('id', candidateId).single()
+  const { data: candidateInfo } = await supabaseAdmin
+    .from('candidates')
+    .select('*, role:roles(*)')
+    .eq('id', candidateId)
+    .single()
 
   // 1. Insert Interview
   const { error: interviewError } = await supabaseAdmin
@@ -287,7 +291,7 @@ export async function confirmBooking(candidateId, startTime, endTime) {
   })
 
   if (candidateInfo) {
-    sendConfirmationEmail(candidateInfo.email, startTime)
+    sendConfirmationEmail(candidateInfo, startTime, candidateInfo.role)
       .catch(err => console.error('[Scheduling] Confirmation email failed:', err))
   }
 

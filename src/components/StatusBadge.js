@@ -18,6 +18,12 @@ export default function StatusBadge({ status, variant = 'default' }) {
     OFFER_SIGNED:           { bg: 'bg-green-100',   text: 'text-green-800' },
     ONBOARDED:              { bg: 'bg-green-100',   text: 'text-green-800' },
     REJECTED:               { bg: 'bg-red-100',     text: 'text-red-800' },
+
+    // Offer Table Specific
+    PENDING_REVIEW:         { bg: 'bg-amber-100',   text: 'text-amber-800' },
+    SENT:                   { bg: 'bg-blue-100',    text: 'text-blue-800' },
+    ACCEPTED:               { bg: 'bg-green-100',   text: 'text-green-800' },
+    DECLINED:               { bg: 'bg-red-100',     text: 'text-red-800' },
   }
 
   const colors = colorMap[status] ?? { bg: 'bg-gray-100', text: 'text-gray-700' }

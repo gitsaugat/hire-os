@@ -125,8 +125,8 @@ export async function updateStatusAction(formData) {
   }
 
   // When a human manually shortlists (without re-screening), run research and scheduling
-  if (newStatus === 'SHORTLISTED') {
-    console.log(`[updateStatusAction] Manual shortlist — triggering research and scheduling for: ${candidateId}`)
+  if (newStatus === 'SHORTLISTED' || newStatus === 'INTERVIEW_SCHEDULING') {
+    console.log(`[updateStatusAction] Manual status change to ${newStatus} — triggering research and scheduling for: ${candidateId}`)
     researchCandidate(candidateId).catch(err =>
       console.error(`[updateStatusAction] Research failed for ${candidateId}:`, err)
     )

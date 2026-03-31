@@ -1,11 +1,13 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getCandidateById, getSchedulingDataByCandidateId } from '@/lib/candidates'
+import { getOfferByCandidateId } from '@/lib/offers'
 import { getSignedResumeUrl } from '@/lib/storage'
 import StatusBadge from '@/components/StatusBadge'
 import StatusTimeline from '@/components/StatusTimeline'
 import StatusUpdateForm from './StatusUpdateForm'
 import InterviewScheduler from '@/components/admin/InterviewScheduler'
+import OfferSection from './OfferSection'
 import DeleteCandidateButton from '@/components/admin/DeleteCandidateButton'
 
 function formatDate(dateString) {
@@ -24,10 +26,12 @@ export default async function CandidateDetailPage({ params }) {
   const { id } = await params
   const [
     { data: candidate, error },
-    { data: schedulingData }
+    { data: schedulingData },
+    { data: offer }
   ] = await Promise.all([
     getCandidateById(id, true),
-    getSchedulingDataByCandidateId(id)
+    getSchedulingDataByCandidateId(id),
+    getOfferByCandidateId(id)
   ])
 
   if (error || !candidate) notFound()
@@ -112,6 +116,12 @@ export default async function CandidateDetailPage({ params }) {
             candidate={candidate} 
             interviews={schedulingData?.interviews || []} 
             holds={schedulingData?.holds || []} 
+          />
+
+          {/* Offer Management Section */}
+          <OfferSection 
+            candidate={candidate} 
+            existingOffer={offer} 
           />
 
           {/* AI Score & Insights */}
