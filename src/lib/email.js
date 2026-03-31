@@ -191,3 +191,98 @@ export async function sendOfferEmail(candidate, roleTitle, signingToken) {
     html
   })
 }
+
+/**
+ * Template for Onboarding Email.
+ */
+export function getOnboardingTemplate(candidateName, roleTitle, teamName) {
+  const joinUrl = process.env.NEXT_PUBLIC_SLACK_JOIN_LINK || '#'
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e8e8e8; border-radius: 10px;">
+      <h2 style="color: #10b981;">Welcome to HireOS, ${candidateName}!</h2>
+      <p>We are thrilled to officially welcome you to the <strong>${teamName || 'team'}</strong> as our new <strong>${roleTitle}</strong>.</p>
+      
+      <p>We've received your signed offer letter! It's time to start your onboarding journey.</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${joinUrl}" style="display: inline-block; background: #4A154B; color: white; padding: 14px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">Join our Slack Workspace</a>
+      </div>
+      
+      <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981; margin: 25px 0;">
+        <p style="margin: 0; font-size: 15px; color: #065f46; line-height: 1.6;">
+          <strong>Next Steps:</strong> Over the coming days, you will receive information regarding your IT setup, employee handbook, and an invite to your first day orientation. 
+          Please join our Slack workspace using the button above to meet the team!
+        </p>
+      </div>
+
+      <p>If you have any questions before your first day, please don't hesitate to reach out to your recruiter or hr@hireos.com.</p>
+      
+      <p style="font-size: 12px; color: #9ca3af; margin-top: 40px; border-top: 1px solid #f3f4f6; padding-top: 20px;">
+        Best regards,<br>
+        <strong>The HireOS Talent Team</strong>
+      </p>
+    </div>
+  `
+}
+
+/**
+ * Sends the onboarding welcome email.
+ */
+export async function sendOnboardingEmail(candidate, role) {
+  const html = getOnboardingTemplate(
+    candidate.name,
+    role.title,
+    role.team
+  )
+
+  return await sendEmail({
+    to: candidate.email,
+    subject: `Welcome to HireOS! Your Onboarding Info`,
+    html
+  })
+}
+
+/**
+ * Template for Slack Invitation Fallback.
+ */
+export function getSlackInviteTemplate() {
+  const joinUrl = process.env.NEXT_PUBLIC_SLACK_JOIN_LINK || '#'
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e8e8e8; border-radius: 10px;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #4A154B; margin-bottom: 5px;">Join our Slack Workspace</h2>
+        <p style="color: #6b7280; margin-top: 0;">Your team is waiting for you!</p>
+      </div>
+      
+      <p>As part of your onboarding, we use Slack for all internal team communication. Please click the button below to set up your account and join the official workspace.</p>
+      
+      <div style="text-align: center; margin: 35px 0;">
+        <a href="${joinUrl}" style="display: inline-block; background: #4A154B; color: white; padding: 14px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">Join Slack Workspace</a>
+      </div>
+
+      <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid #f3f4f6;">
+        <p style="margin: 0; font-size: 13px; color: #4b5563;">
+          <strong>Tip:</strong> Once you join, our onboarding assistant will send you a welcome message directly in Slack with your next steps!
+        </p>
+      </div>
+      
+      <p style="font-size: 12px; color: #9ca3af; margin-top: 40px; border-top: 1px solid #f3f4f6; padding-top: 20px;">
+        Best regards,<br>
+        <strong>The HireOS IT & Talent Team</strong>
+      </p>
+    </div>
+  `
+}
+
+/**
+ * Sends a generic Slack invitation link via email.
+ */
+export async function sendSlackInviteEmail(emailAddress) {
+  const html = getSlackInviteTemplate()
+
+  return await sendEmail({
+    to: emailAddress,
+    subject: `Invitation: Join HireOS on Slack`,
+    html
+  })
+}

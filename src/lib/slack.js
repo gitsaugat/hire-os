@@ -79,21 +79,34 @@ export async function sendWelcomeMessage(slackUserId, messageMarkdown) {
  * Most standard integrations will rely on emails sending join links instead.
  */
 export async function attemptWorkspaceInvite(email) {
+  const sendEmailFallback = async () => {
+    try {
+      const { sendSlackInviteEmail } = await import('./email')
+      await sendSlackInviteEmail(email)
+      console.log(`[SLACK] Sent email invite fallback to ${email}`)
+      return { success: true, fallback: 'email_sent' }
+    } catch (emailErr) {
+      console.error('Failed to send fallback Slack email invite:', emailErr)
+      return { success: false, error: emailErr.message }
+    }
+  }
+
   if (!slack) {
-    return { success: false, error: 'Slack not configured' }
+    console.log('Slack not configured. Skipping API invite and going straight to email fallback.')
+    return await sendEmailFallback()
   }
   
   try {
     // Note: admin.users.invite requires Enterprise Grid.
-    // We wrap this in a try/catch as it may fail on standard plans.
     const result = await slack.admin.users.invite({
-      team_id: process.env.SLACK_TEAM_ID, // Required if using admin API
+      team_id: process.env.SLACK_TEAM_ID,
       email: email,
-      channel_ids: hrChannelId // Add to general/HR channel initially
+      channel_ids: hrChannelId
     })
     return { success: true, result }
   } catch (error) {
-    console.log('Slack admin invite API failed or unauthorized (standard workspace limits apply).', error.message)
-    return { success: false, error: error.message }
+    console.log('Slack admin invite API failed or unauthorized. Falling back to email.', error.message)
+    return await sendEmailFallback()
   }
 }
+

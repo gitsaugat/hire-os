@@ -64,3 +64,59 @@ export async function updateOfferStatusAction(offerId, candidateId, newStatus) {
   revalidatePath(`/admin/candidate/${candidateId}`)
   return { success: true }
 }
+
+/**
+ * Server action to send an onboarding email to an accepted candidate.
+ */
+export async function sendOnboardingEmailAction(candidateId) {
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
+  const { sendOnboardingEmail } = await import('@/lib/email')
+
+  // Fetch candidate details with role and related offer status verification
+  const { data: candidate, error } = await supabaseAdmin
+    .from('candidates')
+    .select('*, role:roles(title, team), offers!inner(status)')
+    .eq('id', candidateId)
+    .eq('offers.status', 'ACCEPTED')
+    .single()
+
+  if (error || !candidate) {
+    return { success: false, error: 'Candidate not found or offer not accepted.' }
+  }
+
+  const { success, error: emailError } = await sendOnboardingEmail(candidate, candidate.role)
+  
+  if (!success) {
+    return { success: false, error: emailError || 'Failed to send onboarding email.' }
+  }
+
+  await updateCandidateStatus(candidateId, 'ONBOARDING', 'Onboarding email sent manually by HR.', 'HUMAN')
+  
+  revalidatePath('/admin/offers')
+  revalidatePath(`/admin/candidate/${candidateId}`)
+  
+  return { success: true }
+}
+
+/**
+ * Server action to mark onboarding as completed.
+ */
+export async function markOnboardingDoneAction(candidateId) {
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
+
+  const { error } = await supabaseAdmin
+    .from('candidates')
+    .update({ status: 'ONBOARDING_DONE', updated_at: new Date().toISOString() })
+    .eq('id', candidateId)
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  await updateCandidateStatus(candidateId, 'ONBOARDING_DONE', 'Candidate onboarding has been officially marked as complete.', 'HUMAN')
+  
+  revalidatePath('/admin/offers')
+  revalidatePath(`/admin/candidate/${candidateId}`)
+  
+  return { success: true }
+}

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import StatusBadge from '@/components/StatusBadge'
-import { updateOfferStatusAction } from '@/actions/offerActions'
+import { updateOfferStatusAction, sendOnboardingEmailAction, markOnboardingDoneAction } from '@/actions/offerActions'
 
 export default function OffersTable({ initialOffers }) {
   const [offers, setOffers] = useState(initialOffers)
@@ -24,7 +24,37 @@ export default function OffersTable({ initialOffers }) {
     setIsUpdating(null)
   }
 
+  const handleOnboardingEmail = async (candidateId) => {
+    if (!window.confirm(`Are you sure you want to send the onboarding email to this candidate?`)) return
+
+    setIsUpdating(candidateId) 
+    const result = await sendOnboardingEmailAction(candidateId)
+    
+    if (result.success) {
+      alert('Onboarding email sent successfully!')
+    } else {
+      alert('Failed to send onboarding email: ' + result.error)
+    }
+    setIsUpdating(null)
+  }
+
+  const handleOnboardingDone = async (candidateId) => {
+    if (!window.confirm(`Are you sure you want to mark onboarding as complete for this candidate?`)) return
+
+    setIsUpdating(candidateId) 
+    const result = await markOnboardingDoneAction(candidateId)
+    
+    if (result.success) {
+      alert('Candidate onboarding marked as complete!')
+    } else {
+      alert('Failed to mark onboarding as complete: ' + result.error)
+    }
+    setIsUpdating(null)
+  }
+
   const formatCurrency = (amount) => {
+
+
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
   }
 
@@ -104,12 +134,37 @@ export default function OffersTable({ initialOffers }) {
                       </div>
                     )}
                     {offer.status === 'ACCEPTED' && (
-                       <button
-                         onClick={() => setSelectedOffer(offer)}
-                         className="rounded-lg bg-green-50 px-3 py-1.5 text-green-600 hover:bg-green-100 transition-colors flex items-center gap-1"
-                       >
-                         ✓ View Signed Offer
-                       </button>
+                       <div className="flex gap-2 items-center">
+                         {offer.candidate.status === 'ONBOARDING_DONE' ? (
+                           <div className="rounded-lg bg-emerald-50 px-4 py-1.5 text-emerald-600 flex items-center gap-1 cursor-default font-bold border border-emerald-100 text-xs">
+                             🎉 Onboarded
+                           </div>
+                         ) : offer.candidate.status === 'ONBOARDING' ? (
+                           <button
+                             onClick={() => handleOnboardingDone(offer.candidate.id)}
+                             disabled={isUpdating === offer.candidate.id}
+                             className="rounded-lg bg-purple-50 hover:bg-purple-100 px-4 py-1.5 text-purple-700 flex items-center gap-1 transition-all font-bold border border-purple-100 disabled:opacity-50 shadow-sm text-xs"
+                             title="Mark as fully onboarded"
+                           >
+                             ✅ Complete Onboarding
+                           </button>
+                         ) : (
+                           <button
+                             onClick={() => handleOnboardingEmail(offer.candidate.id)}
+                             disabled={isUpdating === offer.candidate.id}
+                             className="rounded-lg bg-blue-50 hover:bg-blue-100 px-4 py-1.5 text-blue-700 flex items-center gap-1 transition-all font-bold border border-blue-100 disabled:opacity-50 shadow-sm text-xs"
+                             title="Send Onboarding Email"
+                           >
+                             ✉️ Send Onboarding
+                           </button>
+                         )}
+                         <button
+                           onClick={() => setSelectedOffer(offer)}
+                           className="rounded-lg bg-green-50 px-4 py-1.5 text-green-700 font-bold hover:bg-green-100 transition-all flex items-center gap-1 border border-green-100 shadow-sm text-xs"
+                         >
+                           ✓ Signed Offer
+                         </button>
+                       </div>
                     )}
                     <Link
                       href={`/admin/candidate/${offer.candidate?.id}`}

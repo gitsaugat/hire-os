@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { updateCandidateStatus } from '@/lib/candidates'
 import { notifyHRAboutAcceptance, attemptWorkspaceInvite } from '@/lib/slack'
@@ -63,6 +64,11 @@ export async function POST(req) {
       notifyHRAboutAcceptance(offer.candidate, offer.candidate.role),
       attemptWorkspaceInvite(offer.candidate.email)
     ]).catch(err => console.error('[SlackIntegrationError]', err))
+
+    // Revalidate admin paths so HR sees the updated status immediately
+    revalidatePath('/admin/offers')
+    revalidatePath('/admin/interviews')
+    revalidatePath(`/admin/candidate/${offer.candidate_id}`)
 
     return NextResponse.json({ success: true })
   } catch (error) {
