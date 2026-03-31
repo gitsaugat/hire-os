@@ -52,10 +52,16 @@ export default async function AISettingsPage() {
                           {item.provider === 'openai' && '🤖'}
                           {item.provider === 'claude' && '🧠'}
                           {item.provider === 'gemini' && '✨'}
+                          {item.provider === 'ollama' && '🦙'}
                           {item.provider}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-gray-600 font-mono text-xs">{item.model_name}</td>
+                      <td className="px-6 py-4">
+                        <div className="text-gray-600 font-mono text-xs">{item.model_name}</div>
+                        {item.provider === 'ollama' && item.base_url && (
+                          <div className="text-[10px] text-gray-400 mt-1">{item.base_url}</div>
+                        )}
+                      </td>
                       <td className="px-6 py-4">
                         {item.is_active ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700">
@@ -112,27 +118,28 @@ export default async function AISettingsPage() {
             <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
               <span>➕</span> Add New Model
             </h2>
-            
+
             <form action={addModelAction} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Provider</label>
-                <select 
-                  name="provider" 
+                <select
+                  name="provider"
                   required
                   className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-100 transition-all"
                 >
                   <option value="openai">OpenAI (GPT)</option>
                   <option value="claude">Anthropic (Claude)</option>
                   <option value="gemini">Google (Gemini)</option>
+                  <option value="ollama">Ollama (Local)</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Model Name</label>
-                <input 
-                  type="text" 
-                  name="model_name" 
-                  placeholder="e.g. gpt-4o, claude-3-5-sonnet-20240620"
+                <input
+                  type="text"
+                  name="model_name"
+                  placeholder="e.g. gpt-4o, llama3, mistral"
                   required
                   className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-100 transition-all font-mono"
                 />
@@ -140,18 +147,28 @@ export default async function AISettingsPage() {
 
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">API Key (Optional)</label>
-                <input 
-                  type="password" 
-                  name="api_key" 
+                <input
+                  type="password"
+                  name="api_key"
                   placeholder="Overrides .env variable"
                   className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-100 transition-all"
                 />
                 <p className="mt-2 text-[10px] text-gray-400">
-                  Leave blank to use the key from your server environment.
+                  Leave blank for Ollama or to use environment keys.
                 </p>
               </div>
 
-              <button 
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Base URL (For Ollama)</label>
+                <input
+                  type="text"
+                  name="base_url"
+                  placeholder="http://localhost:11434"
+                  className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-100 transition-all font-mono"
+                />
+              </div>
+
+              <button
                 type="submit"
                 className="w-full mt-4 rounded-xl bg-indigo-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-[0.98]"
               >

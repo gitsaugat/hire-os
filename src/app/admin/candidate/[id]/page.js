@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getCandidateById } from '@/lib/candidates'
+import { getCandidateById, getSlotsByCandidateId } from '@/lib/candidates'
 import { getSignedResumeUrl } from '@/lib/storage'
 import StatusBadge from '@/components/StatusBadge'
 import StatusTimeline from '@/components/StatusTimeline'
 import StatusUpdateForm from './StatusUpdateForm'
+import InterviewScheduler from '@/components/admin/InterviewScheduler'
 
 function formatDate(dateString) {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -20,7 +21,13 @@ export async function generateMetadata({ params }) {
 
 export default async function CandidateDetailPage({ params }) {
   const { id } = await params
-  const { data: candidate, error } = await getCandidateById(id, true)
+  const [
+    { data: candidate, error },
+    { data: slots }
+  ] = await Promise.all([
+    getCandidateById(id, true),
+    getSlotsByCandidateId(id)
+  ])
 
   if (error || !candidate) notFound()
 
@@ -98,6 +105,9 @@ export default async function CandidateDetailPage({ params }) {
               )}
             </div>
           </div>
+
+          {/* Interview Scheduling */}
+          <InterviewScheduler candidate={candidate} initialSlots={slots || []} />
 
           {/* AI Score & Insights */}
           {(candidate.ai_profile != null || candidate.ai_score != null || candidate.status === 'SCREENING' || candidate.status === 'SCREENING_FAILED') && (

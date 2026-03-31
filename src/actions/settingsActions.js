@@ -15,12 +15,13 @@ export async function addModelAction(formData) {
   const provider   = formData.get('provider')
   const modelName  = formData.get('model_name')?.trim()
   const apiKey     = formData.get('api_key')?.trim() || null
+  const baseUrl    = formData.get('base_url')?.trim() || null
 
   if (!provider || !modelName) {
     return { success: false, error: 'Provider and Model Name are required.' }
   }
 
-  const { error } = await addAISetting(provider, modelName, apiKey)
+  const { error } = await addAISetting(provider, modelName, apiKey, baseUrl)
 
   if (error) {
     return { success: false, error: error.message }

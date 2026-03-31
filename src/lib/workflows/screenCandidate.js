@@ -3,6 +3,7 @@ import { updateCandidateStatus } from '../candidates'
 import { evaluateCandidate } from '../ai'
 import { extractTextFromPdf } from '../pdf'
 import { researchCandidate } from './researchCandidate'
+import { generateSlots } from './scheduling'
 
 /**
  * Background AI screening + research workflow.
@@ -12,6 +13,7 @@ import { researchCandidate } from './researchCandidate'
  *   3. Store evaluation results
  *   4. Determine final status
  *   5. AI Research (brief, signals, projects) — always runs
+ *   6. Automated Scheduling (if shortlisted)
  *
  * @param {string} candidateId
  */
@@ -117,14 +119,21 @@ export async function screenCandidate(candidateId) {
     if (score < 50) {
       finalStatus = 'REJECTED'
       statusReason = 'Low AI evaluation score'
-    } else if (score >= 75 && confidence >= 0.6) {
+    } else if (score >= 50) {
       finalStatus = 'SHORTLISTED'
-      statusReason = 'AI recommended for shortlist'
+      statusReason = 'AI score meets recruitment threshold'
     }
 
     await updateCandidateStatus(candidateId, finalStatus, statusReason, 'AI')
 
     console.log(`[screenCandidate] Evaluation complete. Status: ${finalStatus}`)
+
+    // ── Step 7: Automated Scheduling (if shortlisted) ────────────
+    if (finalStatus === 'SHORTLISTED') {
+      console.log(`[screenCandidate] Initiating scheduling flow for ${candidateId}`)
+      await generateSlots(candidateId)
+    }
+
     console.log(`[screenCandidate] Pipeline complete for ${candidateId}.`)
 
   } catch (err) {

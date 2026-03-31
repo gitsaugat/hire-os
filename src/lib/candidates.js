@@ -175,6 +175,21 @@ export async function getCandidates(filters = {}) {
 }
 
 /**
+ * Fetch slots associated with a specific candidate (HELD or CONFIRMED).
+ *
+ * @param {string} candidateId
+ */
+export async function getSlotsByCandidateId(candidateId) {
+  const { data, error } = await supabaseAdmin
+    .from('slots')
+    .select('*')
+    .eq('held_by_candidate_id', candidateId)
+    .order('start_time', { ascending: true })
+
+  return { data, error }
+}
+
+/**
  * Delete a candidate by ID.
  * Used for rollback when resume upload fails after the record was created.
  *

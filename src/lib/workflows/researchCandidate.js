@@ -198,13 +198,14 @@ export async function researchCandidate(candidateId, preExtractedResumeText = nu
     // ── Step 4: Get active AI provider ───────────────────────────
     const { data: settings } = await supabaseAdmin
       .from('ai_settings')
-      .select('provider, model_name, api_key')
+      .select('provider, model_name, api_key, base_url')
       .eq('is_active', true)
       .single()
 
     const provider = settings?.provider || 'openai'
     const model = settings?.model_name
     const apiKey = settings?.api_key
+    const baseUrl = settings?.base_url
 
     console.log(`[researchCandidate] Using provider: ${provider} - ${model || 'default'}`)
 
@@ -224,6 +225,9 @@ export async function researchCandidate(candidateId, preExtractedResumeText = nu
         break
       case 'claude':
         researchResult = await callClaude(prompt, model, apiKey)
+        break
+      case 'ollama':
+        researchResult = await callOllama(prompt, model, baseUrl)
         break
       case 'openai':
       default:
@@ -261,13 +265,17 @@ export async function researchCandidate(candidateId, preExtractedResumeText = nu
       } catch (retryErr) {
         console.error(`[researchCandidate] Retry failed; saving minimal record:`, retryErr.message)
         // Save a minimal fallback record so the UI knows research was attempted
-        await supabaseAdmin.from('candidate_research_profiles').upsert({
-          candidate_id: candidateId,
-          candidate_brief: `AI research could not be completed. Error: ${retryErr.message}`,
-          signals: [],
-          inconsistencies: [],
-          notable_projects: [],
-        }, { onConflict: 'candidate_id' }).catch(() => { })
+        try {
+          await supabaseAdmin.from('candidate_research_profiles').upsert({
+            candidate_id: candidateId,
+            candidate_brief: `AI research could not be completed. Error: ${retryErr.message}`,
+            signals: [],
+            inconsistencies: [],
+            notable_projects: [],
+          }, { onConflict: 'candidate_id' })
+        } catch (dbErr) {
+          console.error('[researchCandidate] Critical failure saving fallback:', dbErr.message)
+        }
       }
     }
   }
@@ -346,4 +354,20 @@ async function callOpenAI(prompt, model = 'gpt-4o-mini', apiKey) {
   }
   const data = await res.json()
   return JSON.parse(data.choices[0].message.content)
+}
+
+async function callOllama(prompt, model = 'llama3', baseUrl = 'http://localhost:11434') {
+  const res = await fetch(`${baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      stream: false,
+      format: 'json',
+    }),
+  })
+  if (!res.ok) throw new Error(`Ollama error: ${res.statusText}`)
+  const data = await res.json()
+  return JSON.parse(data.message.content)
 }

@@ -39,13 +39,14 @@ export async function listAISettings() {
 /**
  * Add a new model configuration to the registry.
  */
-export async function addAISetting(provider, model_name, api_key = null) {
+export async function addAISetting(provider, model_name, api_key = null, base_url = null) {
   const { data, error } = await supabaseAdmin
     .from('ai_settings')
     .insert({
       provider,
       model_name,
       api_key,
+      base_url,
       is_active: false // New models are inactive by default
     })
     .select()

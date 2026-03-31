@@ -4,6 +4,7 @@ import { createCandidate, updateCandidateStatus, deleteCandidateById } from '@/l
 import { validateResumeFile, uploadResume } from '@/lib/storage'
 import { screenCandidate } from '@/lib/workflows/screenCandidate'
 import { researchCandidate } from '@/lib/workflows/researchCandidate'
+import { generateSlots } from '@/lib/workflows/scheduling'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -123,17 +124,39 @@ export async function updateStatusAction(formData) {
     )
   }
 
-  // When a human manually shortlists (without re-screening), run research directly
+  // When a human manually shortlists (without re-screening), run research and scheduling
   if (newStatus === 'SHORTLISTED') {
-    console.log(`[updateStatusAction] Manual shortlist — triggering research for: ${candidateId}`)
+    console.log(`[updateStatusAction] Manual shortlist — triggering research and scheduling for: ${candidateId}`)
     researchCandidate(candidateId).catch(err =>
       console.error(`[updateStatusAction] Research failed for ${candidateId}:`, err)
+    )
+    generateSlots(candidateId).catch(err =>
+      console.error(`[updateStatusAction] Slot generation failed for ${candidateId}:`, err)
     )
   }
 
   revalidatePath(`/admin/candidate/${candidateId}`)
   revalidatePath('/admin')
   return { success: true }
+}
+
+/**
+ * Server action — manually regenerates interview slots for a candidate.
+ *
+ * @param {string} candidateId
+ */
+export async function regenerateSlotsAction(candidateId) {
+  if (!candidateId) return { success: false, error: 'Missing candidate ID.' }
+
+  console.log(`[regenerateSlotsAction] Manually triggering slot generation for: ${candidateId}`)
+  try {
+    await generateSlots(candidateId)
+    revalidatePath(`/admin/candidate/${candidateId}`)
+    return { success: true }
+  } catch (err) {
+    console.error(`[regenerateSlotsAction] Failed:`, err.message)
+    return { success: false, error: err.message }
+  }
 }
 
 // ── Internal helpers ────────────────────────────────────────────────
