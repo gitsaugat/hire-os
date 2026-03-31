@@ -136,8 +136,18 @@ export default function OffersTable({ initialOffers }) {
                     {offer.status === 'ACCEPTED' && (
                        <div className="flex gap-2 items-center">
                          {offer.candidate.status === 'HIRED' ? (
-                           <div className="rounded-lg bg-emerald-50 px-4 py-1.5 text-emerald-600 flex items-center gap-1 cursor-default font-bold border border-emerald-100 text-xs">
-                             🎉 Hired & Onboarding
+                           <div className="flex gap-2 items-center">
+                             <div className="rounded-lg bg-emerald-50 px-3 py-1.5 text-emerald-600 flex items-center gap-1 cursor-default font-bold border border-emerald-100 text-[10px]">
+                               🎉 Hired
+                             </div>
+                             <button
+                               onClick={() => handleOnboardingEmail(offer.candidate.id)}
+                               disabled={isUpdating === offer.candidate.id}
+                               className="rounded-lg bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 text-indigo-700 flex items-center gap-1 transition-all font-bold border border-indigo-100 disabled:opacity-50 shadow-sm text-[10px]"
+                               title="Re-send Slack & Email Onboarding"
+                             >
+                               🔄 Re-send
+                             </button>
                            </div>
                          ) : (
                            <button

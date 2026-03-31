@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { generateCompletion } from '@/lib/ai'
 import { sendWelcomeMessage } from '@/lib/slack'
+import { updateCandidateStatus } from '@/lib/candidates'
 
 export async function POST(request) {
   try {
@@ -30,9 +31,13 @@ export async function POST(request) {
 async function handleTeamJoin(event) {
   const user = event.user
   const email = user?.profile?.email
+  const realName = user?.profile?.real_name || user?.name
+
+  console.log(`[SlackEvent] Processing team_join for ${realName} (ID: ${user?.id}, Email: ${email || 'HIDDEN'})`)
 
   if (!email) {
-    console.log('No email found in team_join event profile. Skipping.')
+    console.warn(`[SlackEvent] No email found in profile. Bot may be missing 'users:read.email' scope.`)
+    // Optional: We could try to match by name, but email is safer.
     return
   }
 
@@ -55,10 +60,11 @@ async function handleTeamJoin(event) {
     .eq('email', email)
   
   if (error || !candidates || candidates.length === 0) {
-    console.log(`No candidate found matching email: ${email}`)
+    console.log(`[SlackEvent] No candidate found matching email: ${email}. This might be a regular team member joining.`)
     return
   }
 
+  console.log(`[SlackEvent] Matched Slack user to candidate: ${candidates[0].name}`)
   const candidate = candidates[0]
   
   // They must have an accepted offer to get the welcome journey
@@ -95,12 +101,27 @@ Please write a short, warm, and highly personalized Slack welcome message.
   try {
     const aiMessage = await generateCompletion(prompt)
     
-    // Send the DM
+    // 1. Send the DM
     await sendWelcomeMessage(user.id, aiMessage)
     console.log(`[Slack] Successfully sent welcome DM to ${candidate.name} (${user.id})`)
+
+    // 2. Log this in the candidate timeline
+    await updateCandidateStatus(
+      candidate.id, 
+      'HIRED', 
+      `Candidate has successfully joined the company Slack workspace. Generated & sent personalized welcome message.`, 
+      'AI'
+    )
   } catch (err) {
     console.error(`[Slack] Failed to generate/send welcome message:`, err.message)
     // Fallback if AI fails
     await sendWelcomeMessage(user.id, `Welcome to the team, ${candidate.name}! We are thrilled to have you join as our new ${role?.title}. Your manager will reach out shortly!`)
+    
+    await updateCandidateStatus(
+      candidate.id, 
+      'HIRED', 
+      `Candidate joined Slack. (AI Welcome generation failed, sent standard greeting).`, 
+      'SYSTEM'
+    )
   }
 }

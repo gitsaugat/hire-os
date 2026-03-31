@@ -57,10 +57,11 @@ export async function POST(req) {
 
     // 4. Trigger Official Onboarding & Slack Integrations asynchronously
     const { sendOnboardingEmail } = await import('@/lib/email')
+    const { sendOnboardingSlackWorkflow } = await import('@/lib/slack')
+    
     Promise.all([
       sendOnboardingEmail(offer.candidate, offer.candidate.role),
-      notifyHRAboutAcceptance(offer.candidate, offer.candidate.role),
-      attemptWorkspaceInvite(offer.candidate.email)
+      sendOnboardingSlackWorkflow(offer.candidate_id)
     ]).catch(err => console.error('[IntegrationError]', err))
 
     // 5. Update Candidate Status sequentially to show full history

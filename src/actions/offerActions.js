@@ -71,6 +71,7 @@ export async function updateOfferStatusAction(offerId, candidateId, newStatus) {
 export async function sendOnboardingEmailAction(candidateId) {
   const { supabaseAdmin } = await import('@/lib/supabase-admin')
   const { sendOnboardingEmail } = await import('@/lib/email')
+  const { sendOnboardingSlackWorkflow } = await import('@/lib/slack')
 
   // Fetch candidate details with role and related offer status verification
   const { data: candidate, error } = await supabaseAdmin
@@ -84,10 +85,14 @@ export async function sendOnboardingEmailAction(candidateId) {
     return { success: false, error: 'Candidate not found or offer not accepted.' }
   }
 
-  const { success, error: emailError } = await sendOnboardingEmail(candidate, candidate.role)
+  // Trigger both communications
+  const [emailResult, slackResult] = await Promise.all([
+    sendOnboardingEmail(candidate, candidate.role),
+    sendOnboardingSlackWorkflow(candidateId)
+  ])
   
-  if (!success) {
-    return { success: false, error: emailError || 'Failed to send onboarding email.' }
+  if (!emailResult.success) {
+    return { success: false, error: emailResult.error || 'Failed to send onboarding email.' }
   }
 
   await updateCandidateStatus(candidateId, 'HIRED', 'Onboarding email sent manually. Candidate is officially hired.', 'HUMAN')

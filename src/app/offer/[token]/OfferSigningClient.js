@@ -95,8 +95,14 @@ export default function OfferSigningClient({ offer }) {
           <p className="text-gray-500 mb-8 leading-relaxed">
             Congratulations, {candidate?.name}! Your signed offer has been sent to the HireOS Talent Team. We'll be in touch shortly with onboarding details.
           </p>
-          <div className="py-3 px-6 bg-green-50 rounded-xl text-green-700 text-sm font-bold border border-green-100">
-            Welcome to the team! 🎉
+          <div className="space-y-3">
+            <div className="py-3 px-6 bg-green-50 rounded-xl text-green-700 text-sm font-bold border border-green-100">
+              Welcome to the team! 🎉
+            </div>
+            <div className="text-[10px] text-gray-400 uppercase tracking-widest font-black flex items-center justify-center gap-2">
+              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+              Slack onboarding triggered
+            </div>
           </div>
         </div>
       </div>

@@ -72,10 +72,13 @@ export async function updateCandidateStatus(
   candidateId,
   newStatus,
   reason = '',
-  changedBy = 'HUMAN'
+  changedBy = 'HUMAN',
+  useAdmin = true // Default to true as most status changes are system/admin-driven
 ) {
+  const client = (useAdmin && supabaseAdmin) ? supabaseAdmin : supabase
+  
   // Fetch current status first so we can record the transition
-  const { data: current, error: fetchError } = await supabase
+  const { data: current, error: fetchError } = await client
     .from('candidates')
     .select('status')
     .eq('id', candidateId)
@@ -86,7 +89,7 @@ export async function updateCandidateStatus(
   const fromStatus = current.status
 
   // Update the candidate
-  const { data: updated, error: updateError } = await supabase
+  const { data: updated, error: updateError } = await client
     .from('candidates')
     .update({ status: newStatus })
     .eq('id', candidateId)
@@ -96,7 +99,7 @@ export async function updateCandidateStatus(
   if (updateError) return { data: null, error: updateError }
 
   // Insert status_history row
-  const { error: historyError } = await supabase.from('status_history').insert({
+  const { error: historyError } = await client.from('status_history').insert({
     candidate_id: candidateId,
     from_status: fromStatus,
     to_status: newStatus,
