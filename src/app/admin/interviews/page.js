@@ -3,6 +3,7 @@ import { getRoles } from '@/lib/roles'
 import Link from 'next/link'
 import InterviewsClient from './InterviewsClient'
 
+export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Interviews – HireOS Admin' }
 
 export default async function InterviewsPage({ searchParams }) {
@@ -10,10 +11,18 @@ export default async function InterviewsPage({ searchParams }) {
   const roleFilter = params?.role || ''
   const dateFilter = params?.date || ''
 
-  const [{ data: interviews, error }, { data: roles }] = await Promise.all([
+  const [{ data: rawInterviews, error }, { data: roles }] = await Promise.all([
     getConfirmedInterviews({ roleId: roleFilter || undefined, date: dateFilter || undefined }),
     getRoles(),
   ])
+
+  // Filter out candidates who have already been offered
+  const interviews = rawInterviews?.filter(int => {
+    const status = (int.candidate?.status || '').toUpperCase()
+    console.log(`[InterviewsPage] Checking candidate ${int.candidate?.name}: status="${status}"`)
+    const isOffered = status.startsWith('OFFER') || status === 'SENT' || status === 'ACCEPTED'
+    return !isOffered
+  }) || []
 
   return (
     <div className="px-8 py-8">
@@ -66,9 +75,6 @@ export default async function InterviewsPage({ searchParams }) {
           </div>
         )}
 
-        <span className="ml-auto text-xs text-gray-400 font-medium">
-          {interviews?.length || 0} session{(interviews?.length !== 1) ? 's' : ''} listed
-        </span>
       </form>
 
       {error && (

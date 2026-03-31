@@ -6,9 +6,7 @@ export async function getConfirmedInterviews(filters = {}) {
     .select(`
       *,
       candidate:candidates(
-        id,
-        name,
-        email,
+        *,
         role:roles(id, title, team)
       )
     `)

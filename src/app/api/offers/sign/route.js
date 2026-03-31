@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { updateCandidateStatus } from '@/lib/candidates'
+import { notifyHRAboutAcceptance, attemptWorkspaceInvite } from '@/lib/slack'
 
 export async function POST(req) {
   try {
@@ -13,10 +14,21 @@ export async function POST(req) {
     // 1. Get Client IP (Best effort)
     const ip = req.headers.get('x-forwarded-for') || req.ip || '127.0.0.1'
 
-    // 2. Fetch Offer
+    // 2. Fetch Offer with candidate and role
     const { data: offer, error: fetchError } = await supabaseAdmin
       .from('offers')
-      .select('*')
+      .select(`
+        *,
+        candidate:candidates (
+          id,
+          name,
+          email,
+          role:roles (
+            title,
+            team
+          )
+        )
+      `)
       .eq('signing_token', signing_token)
       .single()
 
@@ -44,6 +56,13 @@ export async function POST(req) {
 
     // 4. Update Candidate Status
     await updateCandidateStatus(offer.candidate_id, 'OFFER_SIGNED', 'Offer officially signed by candidate.', 'SYSTEM')
+
+    // 5. Trigger Slack Integrations asynchronously
+    // We don't await these to hit the critical path, but they will run in the background
+    Promise.all([
+      notifyHRAboutAcceptance(offer.candidate, offer.candidate.role),
+      attemptWorkspaceInvite(offer.candidate.email)
+    ]).catch(err => console.error('[SlackIntegrationError]', err))
 
     return NextResponse.json({ success: true })
   } catch (error) {

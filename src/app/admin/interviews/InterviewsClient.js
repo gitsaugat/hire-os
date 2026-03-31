@@ -16,9 +16,45 @@ function formatDateTime(dateString) {
 
 export default function InterviewsClient({ interviews }) {
   const [selectedInterview, setSelectedInterview] = useState(null)
+  const [activeTab, setActiveTab] = useState('upcoming') // 'upcoming' | 'completed'
+
+  const filteredInterviews = interviews?.filter(int => {
+    if (activeTab === 'upcoming') return int.status !== 'completed'
+    return int.status === 'completed'
+  }) || []
 
   return (
     <>
+      {/* Tab Filters */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-1 bg-gray-100/50 p-1 rounded-xl w-fit">
+          <button
+            onClick={() => setActiveTab('upcoming')}
+            className={`px-6 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${
+              activeTab === 'upcoming' 
+              ? 'bg-white text-indigo-600 shadow-sm' 
+              : 'text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            Upcoming
+          </button>
+          <button
+            onClick={() => setActiveTab('completed')}
+            className={`px-6 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${
+              activeTab === 'completed' 
+              ? 'bg-white text-indigo-600 shadow-sm' 
+              : 'text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            Completed
+          </button>
+        </div>
+
+        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+          {filteredInterviews.length} {activeTab} session{filteredInterviews.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -31,14 +67,14 @@ export default function InterviewsClient({ interviews }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {!interviews || interviews.length === 0 ? (
+            {!filteredInterviews || filteredInterviews.length === 0 ? (
               <tr>
                 <td colSpan="5" className="px-6 py-12 text-center text-gray-400 italic">
-                  No interviews found matching your filters.
+                  No {activeTab} interviews found.
                 </td>
               </tr>
             ) : (
-              interviews.map((interview) => (
+              filteredInterviews.map((interview) => (
                 <tr key={interview.id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
