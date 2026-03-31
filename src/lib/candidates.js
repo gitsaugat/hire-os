@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { supabaseAdmin } from './supabase-admin'
 
 /**
  * Create a new candidate and log the initial APPLIED status in status_history.
@@ -115,15 +116,26 @@ export async function updateCandidateStatus(
  *
  * @param {string} id
  */
-export async function getCandidateById(id) {
-  const { data: candidate, error } = await supabase
+export async function getCandidateById(id, useAdmin = false) {
+  const client = (useAdmin && supabaseAdmin) ? supabaseAdmin : supabase
+  const { data: candidate, error } = await client
     .from('candidates')
     .select(`*, role:roles(*), status_history(*), ai_profile:candidate_ai_profiles(*)`)
     .eq('id', id)
     .single()
 
+  console.log(`[getCandidateById] Fetching ID: ${id}`)
+  if (candidate) {
+    console.log(`[getCandidateById] Raw ai_profile type: ${typeof candidate.ai_profile}, isArray: ${Array.isArray(candidate.ai_profile)}`)
+    if (candidate.ai_profile) console.log(`[getCandidateById] ai_profile content:`, JSON.stringify(candidate.ai_profile).substring(0, 100))
+  }
 
   if (error) return { data: null, error }
+
+  // Supabase returns relations as arrays; normalize for the frontend
+  if (candidate.ai_profile && Array.isArray(candidate.ai_profile)) {
+    candidate.ai_profile = candidate.ai_profile[0] || null
+  }
 
   // Sort status_history ascending by created_at
   if (candidate.status_history) {

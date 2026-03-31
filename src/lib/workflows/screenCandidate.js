@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../supabase-admin'
 import { updateCandidateStatus } from '../candidates'
 import { evaluateCandidate } from '../ai'
-import { PDFParse } from 'pdf-parse'
+import { extractTextFromPdf } from '../pdf'
 
 /**
  * Background AI screening workflow.
@@ -36,23 +36,32 @@ export async function screenCandidate(candidateId) {
 
     if (downloadError) throw downloadError
 
-    // Convert Blob to Buffer for PDFParse
+    // Convert Blob to Buffer for pdf extraction
     const arrayBuffer = await fileBlob.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
+    console.log(`[screenCandidate] Downloaded PDF buffer size: ${buffer.length} bytes`)
 
     let resumeText = ''
     try {
-      // Use the PDFParse class (version 2.4.5 API)
-      const parser = new PDFParse({ data: buffer })
-      const pdfData = await parser.getText()
-      resumeText = pdfData.text
+      resumeText = await extractTextFromPdf(buffer)
       console.log(`[screenCandidate] Successfully extracted ${resumeText.length} characters from PDF.`)
       
-      // Clean up parser
-      await parser.destroy()
+      // If extraction returned empty text, treat it as a failure
+      if (!resumeText || resumeText.trim().length < 50) {
+        console.warn('[screenCandidate] Extracted text seems too short or empty, may be a scanned/image PDF.')
+        resumeText = resumeText + `\n\nNOTE: The extracted text was very short (${resumeText.trim().length} chars). ` +
+          `This may be a scanned/image PDF. Additional candidate metadata: ` +
+          `Name: ${candidate.name}, Email: ${candidate.email}`
+      }
     } catch (err) {
       console.warn('[screenCandidate] PDF parsing failed, falling back to metadata:', err.message)
-      resumeText = `Candidate Name: ${candidate.name}\nEmail: ${candidate.email}\nNote: Resume text extraction failed.`
+      resumeText = `
+        CANDIDATE NAME: ${candidate.name}
+        CANDIDATE EMAIL: ${candidate.email}
+        ERROR: Resume PDF text extraction failed.
+        NOTE TO AI: Please evaluate based on the candidate name and role metadata,
+        and note that the full resume was unavailable due to a technical parsing error.
+      `
     }
 
 

@@ -54,7 +54,7 @@ export async function evaluateWithClaude(jdText, resumeText, model = 'claude-3-5
 
   const data = await response.json();
   const content = data.content[0].text;
-  
+
   // Extract JSON if model wraps in markdown
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   return JSON.parse(jsonMatch ? jsonMatch[0] : content);

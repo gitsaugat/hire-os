@@ -14,13 +14,13 @@ function formatDate(dateString) {
 
 export async function generateMetadata({ params }) {
   const { id } = await params
-  const { data } = await getCandidateById(id)
+  const { data } = await getCandidateById(id, true)
   return { title: data ? `${data.name} – HireOS Admin` : 'Candidate – HireOS Admin' }
 }
 
 export default async function CandidateDetailPage({ params }) {
   const { id } = await params
-  const { data: candidate, error } = await getCandidateById(id)
+  const { data: candidate, error } = await getCandidateById(id, true)
 
   if (error || !candidate) notFound()
 
@@ -32,7 +32,6 @@ export default async function CandidateDetailPage({ params }) {
     resumeSignedUrl = url
     resumeSignError = signErr
   }
-
 
   return (
     <div className="px-8 py-8">
@@ -101,111 +100,150 @@ export default async function CandidateDetailPage({ params }) {
           </div>
 
           {/* AI Score & Insights */}
-          {(candidate.ai_score != null || candidate.status === 'SCREENING') && (
-            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-sm font-semibold text-gray-500 uppercase tracking-wider">AI Evaluation</h2>
-              
+          {(candidate.ai_profile != null || candidate.ai_score != null || candidate.status === 'SCREENING' || candidate.status === 'SCREENING_FAILED') && (
+            <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-sm">
+              <div className="bg-gray-50/50 px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                  <span className="text-lg">✨</span> AI Evaluation
+                </h2>
+                {candidate.ai_confidence != null && (
+                  <span className="text-[10px] font-bold text-gray-400 bg-white px-2 py-1 rounded-md border border-gray-100">
+                    {Math.round(candidate.ai_confidence * 100)}% Confidence
+                  </span>
+                )}
+              </div>
+
               {candidate.status === 'SCREENING' ? (
-                <div className="flex flex-col gap-3 animate-pulse">
-                  <div className="flex items-end gap-2">
-                    <span className="text-3xl font-bold text-amber-500 italic">Processing...</span>
+                <div className="p-10 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="relative h-16 w-16">
+                    <div className="absolute inset-0 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin" />
                   </div>
-                  <div className="h-2 w-full rounded-full bg-gray-100" />
-                  <p className="text-xs text-gray-400">AI is currently analyzing the resume against the job description.</p>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">Analyzing Candidate...</p>
+                    <p className="text-xs text-gray-400 mt-1">Cross-referencing resume with job requirements.</p>
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <div className="flex items-end gap-2 mb-2">
-                    <span className="text-3xl font-bold text-gray-900">
-                      {Math.round(candidate.ai_score * 100)}
-                    </span>
-                    <span className="mb-1 text-sm text-gray-400">/ 100</span>
+              ) : (candidate.ai_profile && Object.keys(candidate.ai_profile).length > 0) ? (
+                <div className="p-5 space-y-6">
+                  {/* Score & Recommendation Banner */}
+                  <div className="flex flex-col gap-4">
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-4xl font-black text-gray-900 leading-none">
+                          {Math.round((candidate.ai_score || 0) * 100)}
+                        </span>
+                        <span className="text-sm font-bold text-gray-300">/100</span>
+                      </div>
+                      <div className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-tight shadow-sm ${candidate.ai_profile?.recommendation?.toLowerCase().includes('shortlist') || candidate.ai_score > 0.8
+                        ? 'bg-green-100 text-green-700 border border-green-200'
+                        : candidate.ai_profile?.recommendation?.toLowerCase().includes('interview') || candidate.ai_score > 0.6
+                          ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                          : 'bg-amber-100 text-amber-700 border border-amber-200'
+                        }`}>
+                        {candidate.ai_profile?.recommendation || 'Evaluated'}
+                      </div>
+                    </div>
+                    <div className="h-2.5 w-full rounded-full bg-gray-100 overflow-hidden shadow-inner">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-1000"
+                        style={{ width: `${Math.round((candidate.ai_score || 0) * 100)}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
-                    <div
-                      className="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
-                      style={{ width: `${Math.round(candidate.ai_score * 100)}%` }}
-                    />
-                  </div>
-                  {candidate.ai_confidence != null && (
-                    <p className="mt-2 text-xs text-gray-400">
-                      Confidence: {Math.round(candidate.ai_confidence * 100)}%
-                    </p>
+
+                  {/* Analysis Summary */}
+                  {candidate.ai_profile?.summary && (
+
+                    < div className="relative rounded-xl bg-gray-50 p-4 border border-gray-100">
+
+                      <span className="absolute -top-2 -left-1 text-2xl text-gray-200 font-serif">“</span>
+                      <p className="text-[13px] text-gray-600 leading-relaxed italic">
+                        {candidate.ai_profile.summary}
+                      </p>
+                    </div>
                   )}
 
-                  {/* Detailed AI Insights */}
-                  {candidate.ai_profile && (
-                    <div className="mt-6 space-y-4 border-t border-gray-50 pt-4">
-                      <div>
-                        <h3 className="text-xs font-bold text-gray-900 uppercase">Recommendation</h3>
-                        <p className="mt-1 text-sm text-indigo-600 font-semibold">{candidate.ai_profile.recommendation}</p>
-                      </div>
-                      <div>
-                        <h3 className="text-xs font-bold text-gray-400 uppercase">Analysis Summary</h3>
-                        <p className="mt-1 text-sm text-gray-600 leading-relaxed">{candidate.ai_profile.summary}</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
+                  {/* Highlights Grid */}
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/50 border border-indigo-50">
+                        <div className="bg-white p-2 rounded-lg shadow-sm text-lg">📅</div>
                         <div>
-                          <h3 className="text-xs font-bold text-teal-600 uppercase">Key Skills</h3>
-                          <ul className="mt-1 space-y-1">
-                            {candidate.ai_profile.skills_found?.map(s => (
-                              <li key={s} className="text-xs text-gray-600 flex items-center gap-1">
-                                <span className="text-teal-500 font-bold">✓</span> {s}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div>
-                          <h3 className="text-xs font-bold text-amber-600 uppercase">Missing/Gaps</h3>
-                          <ul className="mt-1 space-y-1">
-                            {candidate.ai_profile.gaps_found?.length > 0 ? (
-                              candidate.ai_profile.gaps_found.map(g => (
-                                <li key={g} className="text-xs text-gray-600 flex items-center gap-1">
-                                  <span className="text-amber-500 font-bold">!</span> {g}
-                                </li>
-                              ))
-                            ) : (
-                              <li className="text-xs text-gray-400">None identified</li>
-                            )}
-                          </ul>
+                          <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Experience</p>
+                          <p className="text-sm font-bold text-indigo-900">{candidate.ai_profile.experience_years ?? '—'} Relevant Years</p>
                         </div>
                       </div>
 
-                      {/* New AI Fields */}
-                      <div className="pt-4 border-t border-gray-50 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-xs font-bold text-gray-400 uppercase">Relevant Experience</h3>
-                          <span className="text-sm font-bold text-gray-900">
-                            {candidate.ai_profile.experience_years ?? '—'} years
-                          </span>
-                        </div>
-                        
-                        <div>
-                          <h3 className="text-xs font-bold text-indigo-400 uppercase flex items-center gap-1">
-                            <span>💪</span> Strengths
-                          </h3>
-                          <p className="mt-1 text-xs text-gray-600 leading-relaxed">
-                            {candidate.ai_profile.strengths || 'No specific strengths highlighted.'}
-                          </p>
-                        </div>
+                      <div className="space-y-2">
+                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <span className="w-1 h-1 rounded-full bg-green-400"></span>
+                          Core Strengths
+                        </h3>
+                        <p className="text-xs text-gray-600 leading-relaxed bg-green-50/30 p-3 rounded-xl border border-green-50/50">
+                          {candidate.ai_profile.strengths || 'Strong general background.'}
+                        </p>
+                      </div>
 
-                        <div>
-                          <h3 className="text-xs font-bold text-red-400 uppercase flex items-center gap-1">
-                            <span>⚠️</span> Potential Risks
-                          </h3>
-                          <p className="mt-1 text-xs text-gray-600 leading-relaxed italic">
-                            {candidate.ai_profile.risks || 'No risks identified.'}
-                          </p>
+                      <div className="space-y-2">
+                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <span className="w-1 h-1 rounded-full bg-red-400"></span>
+                          Potential Risks
+                        </h3>
+                        <p className="text-xs text-gray-600 leading-relaxed bg-red-50/30 p-3 rounded-xl border border-red-50/50 italic">
+                          {candidate.ai_profile.risks || 'No immediate concerns found.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Skill Tags */}
+                    <div className="space-y-4 pt-2">
+                      <div>
+                        <h3 className="text-[10px] font-black text-teal-600 uppercase tracking-widest mb-2 px-1">Found Skills</h3>
+                        <div className="flex flex-wrap gap-1.5">
+                          {candidate.ai_profile?.skills_found && candidate.ai_profile.skills_found.length > 0 ? (
+                            candidate.ai_profile.skills_found.map((s, idx) => (
+                              <span key={idx} className="px-2 py-1 bg-teal-50 text-teal-700 text-[10px] font-bold rounded-md border border-teal-100">
+                                {s}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[10px] text-gray-400 italic px-1">Not explicitly listed</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-2 px-1">Knowledge Gaps</h3>
+                        <div className="flex flex-wrap gap-1.5">
+                          {candidate.ai_profile?.gaps_found && candidate.ai_profile.gaps_found.length > 0 ? (
+                            candidate.ai_profile.gaps_found.map((g, idx) => (
+                              <span key={idx} className="px-2 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold rounded-md border border-amber-100">
+                                {g}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[10px] text-gray-400 italic px-1">No major gaps identified</span>
+                          )}
                         </div>
                       </div>
                     </div>
-                  )}
-                </>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-10 text-center">
+                  <span className="text-4xl mb-4 block">🤖</span>
+                  <p className="text-sm font-bold text-gray-900 uppercase tracking-widest">Evaluation Unavailable</p>
+                  <p className="text-xs text-gray-400 mt-1 max-w-[200px] mx-auto">
+                    The AI analysis is currently unavailable or the screening process has not yet completed.
+                    {candidate.status === 'SCREENING_FAILED' && (
+                      <span className="block mt-2 text-red-500 font-bold uppercase tracking-tighter">Screening Failed</span>
+                    )}
+                  </p>
+                </div>
               )}
             </div>
           )}
-
-
 
           {/* Status update form */}
           <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -222,6 +260,6 @@ export default async function CandidateDetailPage({ params }) {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   )
 }

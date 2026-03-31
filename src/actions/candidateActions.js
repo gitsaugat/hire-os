@@ -113,6 +113,14 @@ export async function updateStatusAction(formData) {
     return { success: false, error: error.message }
   }
 
+  // If status was manually set back to SCREENING, trigger the AI screening process again.
+  if (newStatus === 'SCREENING') {
+    console.log(`[updateStatusAction] Manual re-screening triggered for candidate: ${candidateId}`)
+    screenCandidate(candidateId).catch(err => {
+      console.error(`[updateStatusAction] Async re-screening trigger failed for ${candidateId}:`, err)
+    })
+  }
+
   revalidatePath(`/admin/candidate/${candidateId}`)
   revalidatePath('/admin')
   return { success: true }
