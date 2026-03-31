@@ -98,20 +98,33 @@ export async function screenCandidate(candidateId) {
 
     if (updateError) throw updateError
 
-    // ── Step 5: Determine + save final status ──────────────────────
-    const isStrong = aiResult.score >= 75 && aiResult.confidence >= 0.6
-    const finalStatus = isStrong ? 'SHORTLISTED' : 'SCREENED'
-    const statusReason = isStrong ? 'AI recommended for shortlist' : 'AI screening completed'
+    // ── Step 5: AI Research (always runs, awaited) ───────────────
+    console.log(`[screenCandidate] Triggering research profile...`)
+    try {
+      await researchCandidate(candidateId, resumeText)
+    } catch (err) {
+      console.error(`[screenCandidate] Research failed for ${candidateId}:`, err)
+      // We continue anyway so evaluation is saved
+    }
+
+    // ── Step 6: Determine + save final status ──────────────────────
+    const score = aiResult.score || 0
+    const confidence = aiResult.confidence || 0
+
+    let finalStatus = 'SCREENED'
+    let statusReason = 'AI screening completed'
+
+    if (score < 50) {
+      finalStatus = 'REJECTED'
+      statusReason = 'Low AI evaluation score'
+    } else if (score >= 75 && confidence >= 0.6) {
+      finalStatus = 'SHORTLISTED'
+      statusReason = 'AI recommended for shortlist'
+    }
+
     await updateCandidateStatus(candidateId, finalStatus, statusReason, 'AI')
 
     console.log(`[screenCandidate] Evaluation complete. Status: ${finalStatus}`)
-
-    // ── Step 6: AI Research (always runs, non-blocking) ────────────
-    console.log(`[screenCandidate] Triggering research profile...`)
-    researchCandidate(candidateId, resumeText).catch(err =>
-      console.error(`[screenCandidate] Research failed for ${candidateId}:`, err)
-    )
-
     console.log(`[screenCandidate] Pipeline complete for ${candidateId}.`)
 
   } catch (err) {

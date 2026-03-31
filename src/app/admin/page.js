@@ -26,6 +26,7 @@ export default async function AdminDashboard({ searchParams }) {
   const total      = candidates?.length ?? 0
   const today      = candidates?.filter(c => new Date(c.created_at).toDateString() === new Date().toDateString()).length ?? 0
   const shortlisted = candidates?.filter(c => c.status === 'SHORTLISTED').length ?? 0
+  const rejected    = candidates?.filter(c => c.status === 'REJECTED').length ?? 0
 
   return (
     <div className="px-8 py-8">
@@ -36,11 +37,12 @@ export default async function AdminDashboard({ searchParams }) {
       </div>
 
       {/* Stat cards */}
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: 'Total Candidates', value: total, icon: '👥', color: 'from-indigo-500 to-purple-600' },
           { label: 'Applied Today', value: today, icon: '✨', color: 'from-teal-500 to-cyan-500' },
           { label: 'Shortlisted', value: shortlisted, icon: '⭐', color: 'from-amber-400 to-orange-500' },
+          { label: 'Rejected', value: rejected, icon: '🚫', color: 'from-rose-400 to-red-600' },
         ].map((stat) => (
           <div key={stat.label} className="flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${stat.color} text-xl shadow-sm`}>
