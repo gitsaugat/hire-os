@@ -3,6 +3,7 @@
 import { createCandidate, updateCandidateStatus, deleteCandidateById } from '@/lib/candidates'
 import { validateResumeFile, uploadResume } from '@/lib/storage'
 import { screenCandidate } from '@/lib/workflows/screenCandidate'
+import { researchCandidate } from '@/lib/workflows/researchCandidate'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -113,12 +114,21 @@ export async function updateStatusAction(formData) {
     return { success: false, error: error.message }
   }
 
-  // If status was manually set back to SCREENING, trigger the AI screening process again.
+  // Re-screen when manually set back to SCREENING
   if (newStatus === 'SCREENING') {
-    console.log(`[updateStatusAction] Manual re-screening triggered for candidate: ${candidateId}`)
-    screenCandidate(candidateId).catch(err => {
-      console.error(`[updateStatusAction] Async re-screening trigger failed for ${candidateId}:`, err)
-    })
+    console.log(`[updateStatusAction] Manual re-screening triggered for: ${candidateId}`)
+    // screenCandidate already runs researchCandidate as its final step
+    screenCandidate(candidateId).catch(err =>
+      console.error(`[updateStatusAction] Re-screening failed for ${candidateId}:`, err)
+    )
+  }
+
+  // When a human manually shortlists (without re-screening), run research directly
+  if (newStatus === 'SHORTLISTED') {
+    console.log(`[updateStatusAction] Manual shortlist — triggering research for: ${candidateId}`)
+    researchCandidate(candidateId).catch(err =>
+      console.error(`[updateStatusAction] Research failed for ${candidateId}:`, err)
+    )
   }
 
   revalidatePath(`/admin/candidate/${candidateId}`)

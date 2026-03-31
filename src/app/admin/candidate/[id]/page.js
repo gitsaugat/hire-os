@@ -252,14 +252,130 @@ export default async function CandidateDetailPage({ params }) {
           </div>
         </div>
 
-        {/* Right column — timeline */}
-        <div className="lg:col-span-2">
+        {/* Right column — research profile + timeline */}
+        <div className="lg:col-span-2 space-y-6">
+
+          {/* AI Research Profile */}
+          {(candidate.status === 'SHORTLISTED' || candidate.research_profile) && (
+            <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-sm">
+              <div className="bg-gradient-to-r from-violet-50 to-indigo-50 px-6 py-4 border-b border-indigo-100 flex items-center justify-between">
+                <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                  <span className="text-lg">🔍</span> AI Research Profile
+                </h2>
+                {candidate.research_profile && (
+                  <span className="text-[10px] font-bold text-indigo-500 bg-white px-2 py-1 rounded-md border border-indigo-100">
+                    Intelligence Brief
+                  </span>
+                )}
+              </div>
+
+              {!candidate.research_profile ? (
+                <div className="p-10 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="relative h-12 w-12">
+                    <div className="absolute inset-0 rounded-full border-4 border-violet-100 border-t-violet-600 animate-spin" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">Researching Candidate...</p>
+                    <p className="text-xs text-gray-400 mt-1">Generating intelligence profile from resume and social links.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 space-y-6">
+                  {/* Candidate Brief — Top Highlight */}
+                  {candidate.research_profile.candidate_brief && (
+                    <div className="rounded-xl bg-gradient-to-br from-violet-50 to-indigo-50 p-5 border border-indigo-100">
+                      <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-2">Candidate Brief</p>
+                      <p className="text-sm text-gray-700 leading-relaxed">{candidate.research_profile.candidate_brief}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* LinkedIn Summary */}
+                    {candidate.research_profile.linkedin_summary && (
+                      <div className="space-y-2">
+                        <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5">
+                          <span>💼</span> LinkedIn Summary
+                        </h3>
+                        <p className="text-xs text-gray-600 leading-relaxed bg-blue-50/40 p-3 rounded-xl border border-blue-50">
+                          {candidate.research_profile.linkedin_summary}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* GitHub Summary */}
+                    {candidate.research_profile.github_summary && (
+                      <div className="space-y-2">
+                        <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-widest flex items-center gap-1.5">
+                          <span>💻</span> GitHub / Technical
+                        </h3>
+                        <p className="text-xs text-gray-600 leading-relaxed bg-gray-50/60 p-3 rounded-xl border border-gray-100">
+                          {candidate.research_profile.github_summary}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Notable Projects */}
+                  {candidate.research_profile.notable_projects?.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-[10px] font-black text-purple-600 uppercase tracking-widest flex items-center gap-1.5">
+                        <span>🚀</span> Notable Projects
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {candidate.research_profile.notable_projects.map((project, idx) => (
+                          <span key={idx} className="text-[11px] text-purple-700 bg-purple-50 border border-purple-100 px-3 py-1.5 rounded-lg font-medium">
+                            {project}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Signals */}
+                  {candidate.research_profile.signals?.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
+                        <span>⚡</span> Hiring Signals
+                      </h3>
+                      <div className="flex flex-col gap-1.5">
+                        {candidate.research_profile.signals.map((signal, idx) => (
+                          <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-emerald-50/60 border border-emerald-50">
+                            <span className="text-emerald-500 mt-0.5 flex-shrink-0">✓</span>
+                            <span className="text-[11px] text-emerald-800 font-medium">{signal}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Inconsistencies */}
+                  {candidate.research_profile.inconsistencies?.length > 0 && candidate.research_profile.inconsistencies.some(Boolean) && (
+                    <div className="space-y-2">
+                      <h3 className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5">
+                        <span>⚠️</span> Flags & Inconsistencies
+                      </h3>
+                      <div className="flex flex-col gap-1.5">
+                        {candidate.research_profile.inconsistencies.map((item, idx) => (
+                          <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-amber-50/60 border border-amber-100">
+                            <span className="text-amber-500 mt-0.5 flex-shrink-0">!</span>
+                            <span className="text-[11px] text-amber-800 font-medium">{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Status Timeline */}
           <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
             <h2 className="mb-6 text-base font-semibold text-gray-900">Status History</h2>
             <StatusTimeline history={candidate.status_history} />
           </div>
         </div>
       </div>
-    </div >
+    </div>
   )
 }

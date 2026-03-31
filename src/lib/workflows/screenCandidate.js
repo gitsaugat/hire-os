@@ -2,10 +2,16 @@ import { supabaseAdmin } from '../supabase-admin'
 import { updateCandidateStatus } from '../candidates'
 import { evaluateCandidate } from '../ai'
 import { extractTextFromPdf } from '../pdf'
+import { researchCandidate } from './researchCandidate'
 
 /**
- * Background AI screening workflow.
- * This is non-blocking and updates the database upon completion.
+ * Background AI screening + research workflow.
+ * Steps:
+ *   1. Download + extract resume text
+ *   2. AI Evaluation (score, skills, strengths, risks)
+ *   3. Store evaluation results
+ *   4. Determine final status
+ *   5. AI Research (brief, signals, projects) — always runs
  *
  * @param {string} candidateId
  */
@@ -13,7 +19,7 @@ export async function screenCandidate(candidateId) {
   console.log(`[screenCandidate] Starting AI screening for candidate: ${candidateId}`)
 
   try {
-    // 1. Fetch candidate + role data
+    // ── Step 1: Fetch candidate + role ─────────────────────────────
     const { data: candidate, error: fetchError } = await supabaseAdmin
       .from('candidates')
       .select('*, role:roles(*)')
@@ -28,102 +34,94 @@ export async function screenCandidate(candidateId) {
       throw new Error('Resume URL is missing for this candidate.')
     }
 
-    // 2. Download and Extract resume text
-    console.log(`[screenCandidate] Downloading resume from storage: ${candidate.resume_url}`)
+    // ── Step 2: Download + extract resume text ─────────────────────
+    console.log(`[screenCandidate] Downloading resume: ${candidate.resume_url}`)
     const { data: fileBlob, error: downloadError } = await supabaseAdmin.storage
       .from('resumes')
       .download(candidate.resume_url.replace('resumes/', ''))
 
     if (downloadError) throw downloadError
 
-    // Convert Blob to Buffer for pdf extraction
     const arrayBuffer = await fileBlob.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
-    console.log(`[screenCandidate] Downloaded PDF buffer size: ${buffer.length} bytes`)
+    console.log(`[screenCandidate] PDF buffer: ${buffer.length} bytes`)
 
     let resumeText = ''
     try {
       resumeText = await extractTextFromPdf(buffer)
-      console.log(`[screenCandidate] Successfully extracted ${resumeText.length} characters from PDF.`)
-      
-      // If extraction returned empty text, treat it as a failure
+      console.log(`[screenCandidate] Extracted ${resumeText.length} characters from PDF.`)
       if (!resumeText || resumeText.trim().length < 50) {
-        console.warn('[screenCandidate] Extracted text seems too short or empty, may be a scanned/image PDF.')
-        resumeText = resumeText + `\n\nNOTE: The extracted text was very short (${resumeText.trim().length} chars). ` +
-          `This may be a scanned/image PDF. Additional candidate metadata: ` +
-          `Name: ${candidate.name}, Email: ${candidate.email}`
+        console.warn('[screenCandidate] Short text — possible scanned PDF.')
+        resumeText += `\n\nNOTE: Resume text is very short. Candidate: ${candidate.name} <${candidate.email}>`
       }
     } catch (err) {
-      console.warn('[screenCandidate] PDF parsing failed, falling back to metadata:', err.message)
-      resumeText = `
-        CANDIDATE NAME: ${candidate.name}
-        CANDIDATE EMAIL: ${candidate.email}
-        ERROR: Resume PDF text extraction failed.
-        NOTE TO AI: Please evaluate based on the candidate name and role metadata,
-        and note that the full resume was unavailable due to a technical parsing error.
-      `
+      console.warn('[screenCandidate] PDF extraction failed:', err.message)
+      resumeText = `CANDIDATE: ${candidate.name} | EMAIL: ${candidate.email} | NOTE: PDF extraction failed.`
     }
-
 
     const jdText = candidate.role?.jd_text || 'No job description provided.'
 
-    // 3. AI Evaluation (Router handles which provider to use and fallback)
+    // ── Step 3: AI Evaluation ──────────────────────────────────────
+    console.log(`[screenCandidate] Running AI evaluation...`)
     let aiResult
     try {
       aiResult = await evaluateCandidate(jdText, resumeText)
     } catch (err) {
-
-      console.error(`[screenCandidate] AI Router failed for ${candidateId}:`, err.message)
-      throw err // caught by the outer try-catch
+      console.error(`[screenCandidate] AI evaluation failed:`, err.message)
+      throw err
     }
 
-    // 4. Store the AI profile results
+    // ── Step 4: Store evaluation results ──────────────────────────
     const { error: profileError } = await supabaseAdmin
       .from('candidate_ai_profiles')
       .upsert({
         candidate_id: candidateId,
         summary: aiResult.summary,
         skills_found: aiResult.skills || [],
-        gaps_found: aiResult.gaps ? [aiResult.gaps] : [], // user's gaps field
+        gaps_found: aiResult.gaps ? [aiResult.gaps] : [],
         recommendation: aiResult.recommendation,
         experience_years: aiResult.experience_years,
         strengths: aiResult.strengths,
         risks: aiResult.risks,
-        raw_analysis: aiResult
+        raw_analysis: aiResult,
       }, { onConflict: 'candidate_id' })
 
     if (profileError) throw profileError
 
-    // 5. Update candidate with scores
     const { error: updateError } = await supabaseAdmin
       .from('candidates')
       .update({
-        ai_score: (aiResult.score || 0) / 100, // Normalize to 0-1
-        ai_confidence: aiResult.confidence || 0
+        ai_score: (aiResult.score || 0) / 100,
+        ai_confidence: aiResult.confidence || 0,
       })
       .eq('id', candidateId)
 
-
     if (updateError) throw updateError
 
-    // 6. Determine final status
+    // ── Step 5: Determine + save final status ──────────────────────
     const isStrong = aiResult.score >= 75 && aiResult.confidence >= 0.6
     const finalStatus = isStrong ? 'SHORTLISTED' : 'SCREENED'
     const statusReason = isStrong ? 'AI recommended for shortlist' : 'AI screening completed'
-
     await updateCandidateStatus(candidateId, finalStatus, statusReason, 'AI')
 
-    console.log(`[screenCandidate] Successfully completed for ${candidateId}. Result: ${finalStatus}`)
+    console.log(`[screenCandidate] Evaluation complete. Status: ${finalStatus}`)
+
+    // ── Step 6: AI Research (always runs, non-blocking) ────────────
+    console.log(`[screenCandidate] Triggering research profile...`)
+    researchCandidate(candidateId, resumeText).catch(err =>
+      console.error(`[screenCandidate] Research failed for ${candidateId}:`, err)
+    )
+
+    console.log(`[screenCandidate] Pipeline complete for ${candidateId}.`)
 
   } catch (err) {
     console.error(`[screenCandidate] Workflow failed for ${candidateId}:`, err)
-
-    // Mark as failed in the DB
     await updateCandidateStatus(
-      candidateId, 
-      'SCREENING_FAILED', 
-      `AI Screening failed: ${err.message}`, 
+      candidateId,
+      'SCREENING_FAILED',
+      `AI Screening failed: ${err.message}`,
       'AI'
     )
   }
 }
+

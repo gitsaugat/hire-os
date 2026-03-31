@@ -120,7 +120,7 @@ export async function getCandidateById(id, useAdmin = false) {
   const client = (useAdmin && supabaseAdmin) ? supabaseAdmin : supabase
   const { data: candidate, error } = await client
     .from('candidates')
-    .select(`*, role:roles(*), status_history(*), ai_profile:candidate_ai_profiles(*)`)
+    .select(`*, role:roles(*), status_history(*), ai_profile:candidate_ai_profiles(*), research_profile:candidate_research_profiles(*)`)
     .eq('id', id)
     .single()
 
@@ -135,6 +135,9 @@ export async function getCandidateById(id, useAdmin = false) {
   // Supabase returns relations as arrays; normalize for the frontend
   if (candidate.ai_profile && Array.isArray(candidate.ai_profile)) {
     candidate.ai_profile = candidate.ai_profile[0] || null
+  }
+  if (candidate.research_profile && Array.isArray(candidate.research_profile)) {
+    candidate.research_profile = candidate.research_profile[0] || null
   }
 
   // Sort status_history ascending by created_at
