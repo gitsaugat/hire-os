@@ -1,46 +1,132 @@
 import { supabaseAdmin } from '../supabase-admin'
 import { extractTextFromPdf } from '../pdf'
+import { scrapeUrl } from '../firecrawl'
+import { getGitHubData } from '../github'
 
-const RESEARCH_PROMPT = (resumeText, linkedinUrl, githubUrl) => `
+const RESEARCH_PROMPT = (resumeText, linkedinUrl, githubUrl, linkedinContent, githubData) => `
 You are a senior hiring research analyst at a top-tier recruiting firm.
 
-Your task: analyze the candidate data below and return a concise intelligence profile 
-that will be used by the hiring manager before an interview.
+Your task: generate a high-signal candidate intelligence profile that helps a hiring manager quickly understand the candidate’s strengths, risks, and overall quality.
+
+Use the provided LinkedIn content and GitHub repository data for analysis. Do not rely solely on inference if real data is available.
 
 ---
 
-RESUME TEXT:
+## INPUT
+
+RESUME:
 ${resumeText || 'Not provided.'}
 
-LINKEDIN PROFILE URL:
+LINKEDIN URL:
 ${linkedinUrl || 'Not provided.'}
 
-GITHUB PROFILE URL:
+REAL LINKEDIN CONTENT:
+${linkedinContent ? (linkedinContent.content || linkedinContent) : 'Not available (rely on resume/inference).'}
+
+GITHUB URL:
 ${githubUrl || 'Not provided.'}
+
+REAL GITHUB DATA:
+${githubData ? JSON.stringify(githubData, null, 2) : 'Not available (rely on resume/inference).'}
 
 ---
 
-INSTRUCTIONS:
+## INSTRUCTIONS
 
-1. Summarize the candidate's professional background using LinkedIn-style language (infer from resume if URL only)
-2. Summarize their GitHub/technical contributions (infer from resume skills if only a URL)
-3. List 2–5 notable projects or contributions
-4. List 3–6 strong hiring signals (e.g., "Led team of 8 engineers", "Built product from 0 to 10k users")
-5. List any inconsistencies between the resume and expected norms (e.g., gap years, title inflation)
-6. Write a 3–5 sentence candidate brief for a hiring manager
+### 1. Professional Background (LinkedIn-style)
+- Summarize career trajectory
+- Highlight seniority progression
+- Mention notable companies (if present)
+- If LinkedIn content is available, use it as primary source. Otherwise, infer from resume.
 
-CRITICAL RULES:
-- Do NOT hallucinate specific facts (e.g., company names, exact dates) not explicitly in resume
-- If only a URL is provided without scraped content, clearly state assumptions
-- If a section has no data, return null for that field or an empty array
-- Return ONLY valid JSON, no markdown, no commentary
+---
 
-REQUIRED JSON STRUCTURE:
+### 2. Company & Pedigree Analysis
+- Identify top-tier or recognizable companies (FAANG, startups, etc.)
+- Evaluate quality of experience (scale, impact, reputation)
+- If unclear, state assumption
+
+---
+
+### 3. Thought Leadership & Signals (LinkedIn Posts)
+- Infer whether candidate likely produces:
+  - technical content
+  - blogs
+  - open-source contributions
+- Use real LinkedIn content if available to find evidence.
+- If no data, explicitly say: "No evidence of public thought leadership"
+
+---
+
+### 4. GitHub Evaluation
+- Assess engineering depth based on:
+  - types of projects (frontend apps, systems, tooling, etc.)
+  - complexity (basic CRUD vs systems thinking)
+  - consistency of contributions
+- Map real GitHub data (repositories, descriptions, stars) to resume claims.
+- Identify:
+  - strongest repos from data
+  - technologies used
+- If GitHub data is not available, infer from resume skills.
+
+---
+
+### 5. Notable Projects
+List 2–5:
+- projects that demonstrate skill, ownership, or impact
+- verify against real GitHub data if provided
+
+---
+
+### 6. Strong Hiring Signals
+List 3–6:
+Examples:
+- “Built production-grade applications”
+- “Demonstrates ownership of end-to-end systems”
+- “Experience at high-scale company”
+
+---
+
+### 7. Risks / Inconsistencies
+Examples:
+- skill mismatch vs role
+- unclear progression
+- short tenures
+- inconsistencies between resume claims and real GitHub/LinkedIn data
+
+---
+
+### 8. Candidate Brief (MOST IMPORTANT)
+Write a 3–5 sentence summary:
+
+- who they are
+- what they’re strong at
+- key gaps
+- hiring recommendation tone
+
+Make this extremely concise and recruiter-ready.
+
+---
+
+## CRITICAL RULES
+
+- Do NOT hallucinate specific facts (company names, repos, posts) not in resume or external data
+- If only URLs are provided without fetched data:
+  → clearly state assumptions
+- Prefer real data over inference
+- Be concise and high-signal (no fluff)
+
+---
+
+## OUTPUT (JSON ONLY)
+
 {
   "linkedin_summary": "string or null",
+  "company_analysis": "string or null",
+  "thought_leadership": "string or null",
   "github_summary": "string or null",
-  "notable_projects": ["string", "string"],
-  "signals": ["string", "string"],
+  "notable_projects": ["string"],
+  "signals": ["string"],
   "inconsistencies": ["string"],
   "candidate_brief": "string"
 }
@@ -95,7 +181,21 @@ export async function researchCandidate(candidateId, preExtractedResumeText = nu
       console.log(`[researchCandidate] Using pre-extracted resume text (${resumeText.length} chars).`)
     }
 
-    // 3. Get active AI provider
+    // ── Step 3: Fetch External Data ───────────────────────────────
+    let linkedinContent = null
+    let githubData = null
+
+    if (candidate.linkedin_url) {
+      console.log(`[researchCandidate] Scraping LinkedIn: ${candidate.linkedin_url}`)
+      linkedinContent = await scrapeUrl(candidate.linkedin_url)
+    }
+
+    if (candidate.github_url) {
+      console.log(`[researchCandidate] Fetching GitHub data: ${candidate.github_url}`)
+      githubData = await getGitHubData(candidate.github_url)
+    }
+
+    // ── Step 4: Get active AI provider ───────────────────────────
     const { data: settings } = await supabaseAdmin
       .from('ai_settings')
       .select('provider, model_name, api_key')
@@ -108,8 +208,14 @@ export async function researchCandidate(candidateId, preExtractedResumeText = nu
 
     console.log(`[researchCandidate] Using provider: ${provider} - ${model || 'default'}`)
 
-    // 4. Call AI
-    const prompt = RESEARCH_PROMPT(resumeText, candidate.linkedin_url, candidate.github_url)
+    // ── Step 5: Call AI ─────────────────────────────────────────
+    const prompt = RESEARCH_PROMPT(
+      resumeText,
+      candidate.linkedin_url,
+      candidate.github_url,
+      linkedinContent,
+      githubData
+    )
     let researchResult
 
     switch (provider) {
@@ -130,6 +236,8 @@ export async function researchCandidate(candidateId, preExtractedResumeText = nu
       .upsert({
         candidate_id: candidateId,
         linkedin_summary: researchResult.linkedin_summary || null,
+        company_analysis: researchResult.company_analysis || null,
+        thought_leadership: researchResult.thought_leadership || null,
         github_summary: researchResult.github_summary || null,
         notable_projects: researchResult.notable_projects || [],
         signals: researchResult.signals || [],
@@ -159,7 +267,7 @@ export async function researchCandidate(candidateId, preExtractedResumeText = nu
           signals: [],
           inconsistencies: [],
           notable_projects: [],
-        }, { onConflict: 'candidate_id' }).catch(() => {})
+        }, { onConflict: 'candidate_id' }).catch(() => { })
       }
     }
   }

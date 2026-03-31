@@ -313,6 +313,30 @@ export default async function CandidateDetailPage({ params }) {
                         </p>
                       </div>
                     )}
+
+                    {/* Company Analysis */}
+                    {candidate.research_profile.company_analysis && (
+                      <div className="space-y-2">
+                        <h3 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
+                          <span>🏢</span> Company & Pedigree
+                        </h3>
+                        <p className="text-xs text-gray-600 leading-relaxed bg-indigo-50/40 p-3 rounded-xl border border-indigo-50">
+                          {candidate.research_profile.company_analysis}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Thought Leadership */}
+                    {candidate.research_profile.thought_leadership && (
+                      <div className="space-y-2">
+                        <h3 className="text-[10px] font-black text-orange-600 uppercase tracking-widest flex items-center gap-1.5">
+                          <span>✍️</span> Thought Leadership
+                        </h3>
+                        <p className="text-xs text-gray-600 leading-relaxed bg-orange-50/40 p-3 rounded-xl border border-orange-50">
+                          {candidate.research_profile.thought_leadership}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Notable Projects */}
