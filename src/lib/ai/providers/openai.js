@@ -54,3 +54,31 @@ export async function evaluateWithOpenAI(jdText, resumeText, model = 'gpt-4o', a
   const data = await response.json();
   return JSON.parse(data.choices[0].message.content);
 }
+
+/**
+ * Generic text generation with OpenAI
+ */
+export async function generateWithOpenAI(prompt, model = 'gpt-4o', apiKey = null) {
+  const finalKey = apiKey || process.env.OPENAI_API_KEY;
+  if (!finalKey) throw new Error('OPENAI_API_KEY is missing');
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${finalKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }]
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(`OpenAI API error: ${err.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}

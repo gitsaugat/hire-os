@@ -75,3 +75,32 @@ export async function evaluateWithOllama(jdText, resumeText, model = 'llama3', b
     throw err;
   }
 }
+
+/**
+ * Generic text generation with Ollama
+ */
+export async function generateWithOllama(prompt, model = 'llama3', baseUrl = 'http://localhost:11434') {
+  console.log(`[Ollama] Generating completion with model: ${model} at ${baseUrl}`);
+  
+  try {
+    const response = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: model,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.message?.content || '';
+  } catch (err) {
+    console.error(`[Ollama] Generation failed:`, err.message);
+    throw err;
+  }
+}

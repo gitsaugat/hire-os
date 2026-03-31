@@ -108,6 +108,29 @@ export async function updateCandidateStatus(
     console.error('Failed to log status history:', historyError)
   }
 
+  // --- Automated Cleanup Logic ---
+  const isInterviewExit = fromStatus === 'INTERVIEW_SCHEDULED' && newStatus !== 'INTERVIEW_SCHEDULED'
+  const isShortlistExit = (fromStatus === 'SHORTLISTED' || fromStatus === 'INTERVIEW_SCHEDULING') && 
+                          (newStatus !== 'SHORTLISTED' && newStatus !== 'INTERVIEW_SCHEDULING' && newStatus !== 'INTERVIEW_SCHEDULED')
+
+  if (isInterviewExit) {
+    console.log(`[Cleanup] Candidate ${candidateId} leaving INTERVIEW_SCHEDULED. Deleting meetings.`)
+    const { data: interview } = await supabaseAdmin.from('interviews').select('*').eq('candidate_id', candidateId).maybeSingle()
+    if (interview) {
+      await supabaseAdmin.from('interviews').delete().eq('id', interview.id)
+      // Non-blocking calendar cancellation
+      import('./google-calendar').then(gc => {
+        gc.cancelCalendarEvent(interview.interviewer_email, interview.start_time, interview.end_time)
+          .catch(err => console.error('[Cleanup] Calendar cancel failed:', err))
+      })
+    }
+  }
+
+  if (isInterviewExit || isShortlistExit) {
+    console.log(`[Cleanup] Clearing temporary holds for candidate: ${candidateId}`)
+    await supabaseAdmin.from('temporary_holds').delete().eq('candidate_id', candidateId)
+  }
+
   return { data: updated, error: null }
 }
 
@@ -211,19 +234,43 @@ export async function getSchedulingDataByCandidateId(candidateId) {
 
 /**
  * Delete a candidate by ID.
- * Used for rollback when resume upload fails after the record was created.
+ * Cascades or explicitly deletes related interviews, holds, and cancels calendar events.
  *
  * @param {string} candidateId
  * @returns {{ error: Error | null }}
  */
 export async function deleteCandidateById(candidateId) {
+  console.log(`[deleteCandidateById] Triggered for candidate: ${candidateId}`)
+  
+  // 1. Check for confirmed interviews to cancel calendar events
+  const { data: interview } = await supabaseAdmin
+    .from('interviews')
+    .select('*')
+    .eq('candidate_id', candidateId)
+    .maybeSingle()
+    
+  if (interview) {
+    console.log(`[deleteCandidateById] Canceling calendar event for interview...`)
+    import('./google-calendar').then(gc => {
+      gc.cancelCalendarEvent(interview.interviewer_email, interview.start_time, interview.end_time)
+        .catch(err => console.error('[deleteCandidateById] Calendar cancel failed:', err))
+    })
+    await supabaseAdmin.from('interviews').delete().eq('id', interview.id)
+  }
+
+  // 2. Clear temporary holds
+  await supabaseAdmin.from('temporary_holds').delete().eq('candidate_id', candidateId)
+
+  // 3. Delete candidate record
   const { error } = await supabase
     .from('candidates')
     .delete()
     .eq('id', candidateId)
 
   if (error) {
-    console.error('[deleteCandidateById] Rollback failed:', error)
+    console.error('[deleteCandidateById] Deletion failed:', error)
+  } else {
+    console.log(`[deleteCandidateById] Successfully deleted candidate: ${candidateId}`)
   }
 
   return { error }

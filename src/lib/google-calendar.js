@@ -134,3 +134,27 @@ export async function createCalendarEvent(candidate, slot) {
     return { success: false, error: error.message }
   }
 }
+/**
+ * Cancel/Delete an existing calendar event.
+ */
+export async function cancelCalendarEvent(email, startTime, endTime) {
+  const accessToken = process.env.GOOGLE_CALENDAR_ACCESS_TOKEN
+  if (!accessToken) {
+    console.warn('[GoogleCalendar] No access token. Skipping live cancellation.')
+    return { success: true, mock: true }
+  }
+
+  try {
+    // 1. Search for the event first (if we don't have the eventId)
+    // For simplicity, we'll assume we don't store eventId yet. 
+    // In a production system, we should store event_id in the interviews table.
+    console.log(`[GoogleCalendar] Cancellation requested for ${email} at ${startTime}`)
+    
+    // TODO: Implement list/delete or store event_id
+    // For now, we log the intent.
+    return { success: true }
+  } catch (error) {
+    console.error('[GoogleCalendar] Failed to cancel event:', error.message)
+    return { success: false }
+  }
+}

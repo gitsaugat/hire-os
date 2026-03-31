@@ -6,6 +6,7 @@ import StatusBadge from '@/components/StatusBadge'
 import StatusTimeline from '@/components/StatusTimeline'
 import StatusUpdateForm from './StatusUpdateForm'
 import InterviewScheduler from '@/components/admin/InterviewScheduler'
+import DeleteCandidateButton from '@/components/admin/DeleteCandidateButton'
 
 function formatDate(dateString) {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -263,6 +264,12 @@ export default async function CandidateDetailPage({ params }) {
           <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-sm font-semibold text-gray-500 uppercase tracking-wider">Update Status</h2>
             <StatusUpdateForm candidateId={candidate.id} currentStatus={candidate.status} />
+          </div>
+
+          {/* Danger Zone */}
+          <div className="rounded-2xl border border-red-100 bg-red-50/10 p-5 shadow-sm">
+            <h2 className="mb-4 text-sm font-semibold text-red-500 uppercase tracking-wider">Danger Zone</h2>
+            <DeleteCandidateButton candidateId={candidate.id} />
           </div>
         </div>
 

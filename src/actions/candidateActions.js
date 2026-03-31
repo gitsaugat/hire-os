@@ -159,6 +159,26 @@ export async function regenerateSlotsAction(candidateId) {
   }
 }
 
+/**
+ * Server action — deletes a candidate and redirects to the candidates list.
+ *
+ * @param {string} candidateId
+ */
+export async function deleteCandidateAction(candidateId) {
+  if (!candidateId) return { success: false, error: 'Missing candidate ID.' }
+
+  console.log(`[deleteCandidateAction] Deleting candidate: ${candidateId}`)
+  const { error } = await deleteCandidateById(candidateId)
+  
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  // Clear cache and redirect
+  revalidatePath('/admin')
+  return { success: true }
+}
+
 // ── Internal helpers ────────────────────────────────────────────────
 
 import { supabase } from '@/lib/supabase'
