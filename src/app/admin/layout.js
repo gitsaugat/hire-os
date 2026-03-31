@@ -7,6 +7,7 @@ const sidebarLinks = [
   { label: 'Candidates', href: '/admin', icon: '👥' },
   { label: 'Interviews', href: '/admin/interviews', icon: '📅' },
   { label: 'Offers', href: '/admin/offers', icon: '📄' },
+  { label: 'Emails', href: '/admin/emails', icon: '📬' },
   { label: 'Settings', href: '/admin/settings', icon: '⚙️' },
 ]
 

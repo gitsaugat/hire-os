@@ -10,7 +10,7 @@ const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'hire@yourdomain.com'
 /**
  * Generic email sender using SendGrid.
  */
-export async function sendEmail({ to, subject, html, text }) {
+export async function sendEmail({ to, subject, html, text, candidateId }) {
   if (!process.env.SENDGRID_API_KEY) {
     console.warn('[EMAIL MOCK] To:', to, 'Subject:', subject)
     return { success: true, mock: true }
@@ -26,14 +26,44 @@ export async function sendEmail({ to, subject, html, text }) {
     html,
   }
 
+  let logStatus = 'FAILED'
+  let logError = null
+
   try {
     const response = await sgMail.send(msg)
     console.log(`[EMAIL] SendGrid success for: ${to} | Status: ${response[0].statusCode}`)
-    return { success: true }
+    logStatus = 'SENT'
   } catch (error) {
     console.error('[SendGrid Error]:', error.response?.body || error.message)
-    return { success: false, error: error.message }
+    logError = error.message
   }
+
+  // Log to Supabase
+  try {
+    const { supabaseAdmin } = await import('./supabase-admin')
+    let resolvedCandidateId = candidateId
+
+    // Try to resolve candidateId if missing
+    if (!resolvedCandidateId) {
+      const { data } = await supabaseAdmin.from('candidates').select('id').eq('email', to).maybeSingle()
+      if (data) resolvedCandidateId = data.id
+    }
+
+    await supabaseAdmin.from('email_logs').insert({
+      candidate_id: resolvedCandidateId || null,
+      recipient: to,
+      subject,
+      body_preview: text ? text.substring(0, 200) : (html ? html.replace(/<[^>]*>?/gm, ' ').substring(0, 200).trim() : null),
+      body_html: html || text || null,
+      status: logStatus,
+      error_message: logError
+    })
+  } catch (dbErr) {
+    console.error('[EMAIL LOG ERROR]: Failed to insert into email_logs', dbErr)
+  }
+
+  if (logStatus === 'FAILED') return { success: false, error: logError }
+  return { success: true }
 }
 
 /**
