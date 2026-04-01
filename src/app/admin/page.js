@@ -3,6 +3,7 @@ import { getCandidates } from '@/lib/candidates'
 import { getRoles } from '@/lib/roles'
 import StatusBadge from '@/components/StatusBadge'
 import { CANDIDATE_STATUSES } from '@/lib/constants'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
 function formatDate(dateString) {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -16,11 +17,28 @@ export default async function AdminDashboard({ searchParams }) {
   const params = await searchParams
   const roleFilter   = params?.role   || ''
   const statusFilter = params?.status || ''
+  const page         = parseInt(params?.page || '1')
+  const pageSize     = 10
+  const offset       = (page - 1) * pageSize
 
+  // Fetch total count for pagination
+  let countQuery = supabaseAdmin.from('candidates').select('*', { count: 'exact', head: true })
+  if (roleFilter) countQuery = countQuery.eq('role_id', roleFilter)
+  if (statusFilter) countQuery = countQuery.eq('status', statusFilter)
+  const { count: totalCount } = await countQuery
+
+  // Fetch paginated roles
   const [{ data: candidates, error: candError }, { data: roles }] = await Promise.all([
-    getCandidates({ roleId: roleFilter || undefined, status: statusFilter || undefined }),
+    getCandidates({ 
+      roleId: roleFilter || undefined, 
+      status: statusFilter || undefined,
+      limit: pageSize,
+      offset: offset
+    }),
     getRoles(),
   ])
+
+  const totalPages = Math.ceil((totalCount || 0) / pageSize)
 
   // Stat calculations
   const total      = candidates?.length ?? 0
@@ -173,6 +191,48 @@ export default async function AdminDashboard({ searchParams }) {
             )}
           </tbody>
         </table>
+        
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-50">
+            <div className="text-xs text-gray-400 font-bold uppercase tracking-widest">
+              Showing <span className="text-gray-900">{offset + 1}</span> to <span className="text-gray-900">{Math.min(offset + pageSize, totalCount)}</span> of <span className="text-gray-900">{totalCount}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              {page > 1 && (
+                <Link
+                  href={`/admin?page=${page - 1}${roleFilter ? `&role=${roleFilter}` : ''}${statusFilter ? `&status=${statusFilter}` : ''}`}
+                  className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-all font-bold"
+                >
+                  ←
+                </Link>
+              )}
+              
+              {[...Array(totalPages)].map((_, i) => (
+                <Link
+                  key={i}
+                  href={`/admin?page=${i + 1}${roleFilter ? `&role=${roleFilter}` : ''}${statusFilter ? `&status=${statusFilter}` : ''}`}
+                  className={`h-8 w-8 flex items-center justify-center rounded-lg text-xs font-black transition-all ${
+                    page === i + 1 
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                      : 'text-gray-400 hover:bg-gray-100'
+                  }`}
+                >
+                  {i + 1}
+                </Link>
+              ))}
+
+              {page < totalPages && (
+                <Link
+                  href={`/admin?page=${page + 1}${roleFilter ? `&role=${roleFilter}` : ''}${statusFilter ? `&status=${statusFilter}` : ''}`}
+                  className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-all font-bold"
+                >
+                  →
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -28,22 +28,21 @@ export default function Home() {
           <div className="flex flex-col items-start">
             {/* Badge */}
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-4 py-1.5">
-              <span className="h-2 w-2 rounded-full bg-indigo-500" />
-              <span className="text-xs font-semibold text-indigo-700 tracking-wide">
-                Future of Intelligent Hiring
+              <span className="h-2 w-2 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-700">
+                Built as a production-grade AI hiring system prototype
               </span>
             </div>
 
             <h1 className="text-5xl font-bold leading-tight tracking-tight text-gray-900 lg:text-6xl">
-              One Platform.{' '}
+              From Application to Onboarding —{' '}
               <span className="bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-                From Candidate
-              </span>{' '}
-              to Employee.
+                Powered by AI
+              </span>, Controlled by Humans.
             </h1>
 
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-gray-500">
-              HireOS automates screening, scheduling, and onboarding with AI — so your team spends time on people, not paperwork.
+              A state-driven hiring pipeline that automates screening, scheduling, evaluation, and onboarding — while keeping human decision-making in control.
             </p>
 
             <div className="mt-10 flex flex-wrap items-center gap-4">
@@ -68,44 +67,49 @@ export default function Home() {
                 {['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd'].map((color, i) => (
                   <div
                     key={i}
-                    className="h-8 w-8 rounded-full border-2 border-white"
+                    className="h-8 w-8 rounded-full border-2 border-white shadow-sm"
                     style={{ background: color }}
                   />
                 ))}
               </div>
-              <span>
-                Trusted by <strong className="text-gray-700">500+</strong> hiring teams
+              <span className="text-[11px] font-bold uppercase tracking-wider">
+                End-to-end prototype demonstrating <strong className="text-gray-700 uppercase">AI-driven hiring workflows</strong>
               </span>
             </div>
           </div>
 
           {/* Right column — Mock dashboard card */}
           <div className="relative">
+            {/* Label above preview */}
+            <div className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600/50">
+              Real-Time Candidate Flow
+            </div>
+
             {/* Floating feature tags */}
             <div className="absolute -top-4 -left-6 z-10 rounded-xl border border-indigo-100 bg-white px-3 py-2 shadow-lg">
               <div className="flex items-center gap-2">
                 <div className="h-6 w-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
-                  <span className="text-white text-xs">✦</span>
+                  <span className="text-white text-[10px]">✦</span>
                 </div>
-                <span className="text-xs font-semibold text-gray-700">AI Screening</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-700">AI Screening</span>
               </div>
             </div>
 
             <div className="absolute -bottom-4 -left-4 z-10 rounded-xl border border-teal-100 bg-white px-3 py-2 shadow-lg">
               <div className="flex items-center gap-2">
                 <div className="h-6 w-6 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center">
-                  <span className="text-white text-xs">⚡</span>
+                  <span className="text-white text-[10px]">⚡</span>
                 </div>
-                <span className="text-xs font-semibold text-gray-700">Auto Scheduling</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-700">Smart Scheduling</span>
               </div>
             </div>
 
             <div className="absolute top-1/2 -right-4 z-10 -translate-y-1/2 rounded-xl border border-purple-100 bg-white px-3 py-2 shadow-lg">
               <div className="flex items-center gap-2">
                 <div className="h-6 w-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                  <span className="text-white text-xs">📄</span>
+                  <span className="text-white text-[10px]">📊</span>
                 </div>
-                <span className="text-xs font-semibold text-gray-700">Offer Generation</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-700">Interview Intelligence</span>
               </div>
             </div>
 

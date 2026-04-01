@@ -5,6 +5,8 @@ import Link from 'next/link'
 import InterviewResultsModal from './InterviewResultsModal'
 import AdminSlotPickerModal from '@/components/admin/AdminSlotPickerModal'
 import { reviewSchedulingRequestAction } from '@/actions/schedulingActions'
+import Pagination from '@/components/admin/Pagination'
+import { useEffect } from 'react'
 
 function formatDateTime(dateString) {
   if (!dateString) return '—'
@@ -22,6 +24,13 @@ export default function InterviewsClient({ interviews, schedulingRequests }) {
   const [activeTab, setActiveTab] = useState('upcoming') // 'upcoming' | 'completed' | 'requests'
   const [isUpdating, setIsUpdating] = useState(null)
   const [approvingRequest, setApprovingRequest] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
+
+  // Reset to page 1 when tab changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeTab])
 
   const filteredInterviews = interviews?.filter(int => {
     if (activeTab === 'upcoming') return int.status !== 'completed'
@@ -100,7 +109,7 @@ export default function InterviewsClient({ interviews, schedulingRequests }) {
                   </td>
                 </tr>
               ) : (
-                schedulingRequests.map(req => (
+                schedulingRequests.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(req => (
                   <tr key={req.id} className="hover:bg-gray-50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -170,7 +179,7 @@ export default function InterviewsClient({ interviews, schedulingRequests }) {
                   </td>
                 </tr>
               ) : (
-                filteredInterviews.map((interview) => (
+                filteredInterviews.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((interview) => (
                   <tr key={interview.id} className="hover:bg-gray-50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -239,6 +248,12 @@ export default function InterviewsClient({ interviews, schedulingRequests }) {
             )}
           </tbody>
         </table>
+        <Pagination 
+          currentPage={currentPage}
+          totalCount={activeTab === 'requests' ? (schedulingRequests?.length || 0) : filteredInterviews.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* Results Modal */}

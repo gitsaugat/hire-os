@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 const sidebarLinks = [
   { label: 'Dashboard', href: '/admin', icon: '⊞' },
+  { label: 'Roles', href: '/admin/roles', icon: '💼' },
   { label: 'Candidates', href: '/admin', icon: '👥' },
   { label: 'Interviews', href: '/admin/interviews', icon: '📅' },
   { label: 'Offers', href: '/admin/offers', icon: '📄' },

@@ -4,11 +4,14 @@ import { useState } from 'react'
 import Link from 'next/link'
 import StatusBadge from '@/components/StatusBadge'
 import { updateOfferStatusAction, sendOnboardingEmailAction, markOnboardingDoneAction } from '@/actions/offerActions'
+import Pagination from '@/components/admin/Pagination'
 
 export default function OffersTable({ initialOffers }) {
   const [offers, setOffers] = useState(initialOffers)
   const [isUpdating, setIsUpdating] = useState(null)
   const [selectedOffer, setSelectedOffer] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
 
   const handleStatusUpdate = async (offerId, candidateId, newStatus) => {
     if (!window.confirm(`Are you sure you want to mark this offer as ${newStatus}?`)) return
@@ -72,14 +75,7 @@ export default function OffersTable({ initialOffers }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
-          {offers.length === 0 ? (
-            <tr>
-              <td colSpan="5" className="px-6 py-12 text-center text-gray-400 italic font-medium">
-                No offers found in this phase.
-              </td>
-            </tr>
-          ) : (
-            offers.map((offer) => (
+          {offers.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((offer) => (
               <tr key={offer.id} className="hover:bg-gray-50/50 transition-colors group">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
@@ -138,7 +134,7 @@ export default function OffersTable({ initialOffers }) {
                          {offer.candidate.status === 'HIRED' ? (
                            <div className="flex gap-2 items-center">
                              <div className="rounded-lg bg-emerald-50 px-3 py-1.5 text-emerald-600 flex items-center gap-1 cursor-default font-bold border border-emerald-100 text-[10px]">
-                               🎉 Hired
+                                🎉 Hired
                              </div>
                              <button
                                onClick={() => handleOnboardingEmail(offer.candidate.id)}
@@ -146,7 +142,7 @@ export default function OffersTable({ initialOffers }) {
                                className="rounded-lg bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 text-indigo-700 flex items-center gap-1 transition-all font-bold border border-indigo-100 disabled:opacity-50 shadow-sm text-[10px]"
                                title="Re-send Slack & Email Onboarding"
                              >
-                               🔄 Re-send
+                                🔄 Re-send
                              </button>
                            </div>
                          ) : (
@@ -176,10 +172,23 @@ export default function OffersTable({ initialOffers }) {
                   </div>
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ))}
+            {offers.length === 0 && (
+              <tr>
+                <td colSpan="5" className="px-6 py-12 text-center text-gray-400 italic font-medium">
+                  No offers found in this phase.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        
+        <Pagination 
+          currentPage={currentPage}
+          totalCount={offers.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
 
       {/* Full Signed Offer Modal */}
       {selectedOffer && (

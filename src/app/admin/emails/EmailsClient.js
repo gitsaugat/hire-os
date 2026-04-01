@@ -1,5 +1,6 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import Pagination from '@/components/admin/Pagination'
 
 export default function EmailsClient({ initialLogs }) {
   const [logs] = useState(initialLogs)
@@ -10,6 +11,13 @@ export default function EmailsClient({ initialLogs }) {
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [dateFilter, setDateFilter] = useState('ALL')
   const [roleFilter, setRoleFilter] = useState('ALL')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
+
+  // Reset to page 1 when any filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, statusFilter, dateFilter, roleFilter])
 
   // Extract unique roles from logs for the dropdown
   const uniqueRoles = useMemo(() => {
@@ -136,7 +144,7 @@ export default function EmailsClient({ initialLogs }) {
                 </td>
               </tr>
             ) : (
-              filteredLogs.map((log) => (
+              filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 text-gray-500 font-medium whitespace-nowrap" suppressHydrationWarning>
                     {new Date(log.created_at).toLocaleString('en-US', { 
@@ -193,6 +201,13 @@ export default function EmailsClient({ initialLogs }) {
             )}
           </tbody>
         </table>
+        
+        <Pagination 
+          currentPage={currentPage}
+          totalCount={filteredLogs.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* Email Viewer Modal */}
