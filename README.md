@@ -531,8 +531,66 @@ evaluating great people.
 - `docs/NOTETAKER_INTEGRATION.md` — Fireflies.ai integration
   design and production path
 
+
+## 🚀 Getting Started
+
+### 1. Installation
+```bash
+npm install
+```
+
+### 2. Database Setup (Supabase)
+1. Create a new project on [Supabase](https://supabase.com/).
+2. Navigate to the **SQL Editor** in your Supabase dashboard.
+3. Open the `db.sql` file in the root of this project.
+4. Copy the entire content of `db.sql` and run it in the SQL Editor. 
+   - *Note: This will create all necessary tables (roles, candidates, interviews, offers, logs, etc.), custom enumerations, and seed data.*
+5. **Database Schema Visualization:** You can view how everything connects here: [dbdiagram.io/d/69cc760d78c6c4bc7ab56325](https://dbdiagram.io/d/69cc760d78c6c4bc7ab56325)
+
+### 3. Environment Configuration
+Create a `.env.local` file in the root directory and add the following variables:
+
+```env
+# Supabase (Required)
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# AI Providers (At least one required for defaults)
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key
+GOOGLE_GENERATIVE_AI_API_KEY=your_google_key
+
+# Email (Required for notifications)
+SENDGRID_API_KEY=your_sendgrid_key
+SENDGRID_FROM_EMAIL=your_verified_email
+
+# Slack (Required for onboarding flow)
+SLACK_BOT_TOKEN=xoxb-your-token
+SLACK_HR_CHANNEL=C0...
+SLACK_DEFAULT_CHANNEL=C0...
+
+# Enrichment (Optional)
+FIRECRAWL_API_KEY=fc-...
+GITHUB_API_KEY=ghp_...
+```
+
+### 4. Build and Run
+**Development Mode:**
+```bash
+npm run dev
+```
+
+**Production Build:**
+```bash
+npm run build
+npm run start
+```
+
 ---
 
 *Built solo by Saugat Siwakoti.*
 *AI Product Operator Assignment submission.*
 *Submitted: March 31, 2026.*
+
+---
