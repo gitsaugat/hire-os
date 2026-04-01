@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { updateCandidateStatus } from '@/lib/candidates'
-import { notifyHRAboutAcceptance, attemptWorkspaceInvite } from '@/lib/slack'
 
 export async function POST(req) {
   try {
